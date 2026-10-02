@@ -70,7 +70,7 @@ jobs:
             "https://keromotoboy.com.br/rotas/" \
             "https://keromotoboy.com.br/calculadora/"
           do
-            code=$(curl -L -sS -o /dev/null -w "%{http_code}" --max-time 20 "$u")
+            code=$(curl -L -sS --retry 2 --retry-all-errors --retry-delay 1 -o /dev/null -w "%{http_code}" --max-time 20 "$u")
             echo "$u -> $code"
             test "$code" -ge 200 -a "$code" -lt 400
           done

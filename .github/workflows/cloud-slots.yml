@@ -1,0 +1,81 @@
+name: Kero Cloud Slots
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Tarefa pública permitida
+        required: true
+        type: choice
+        options:
+          - site-smoke
+          - runtime-benchmark
+      slots:
+        description: Quantidade de slots paralelos (1-4)
+        required: true
+        default: "2"
+        type: choice
+        options: ["1","2","3","4"]
+  repository_dispatch:
+    types: [kero-cloud-task]
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      task: ${{ steps.m.outputs.task }}
+    steps:
+      - id: m
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SLOTS="${{ inputs.slots }}"
+            TASK="${{ inputs.task }}"
+          else
+            SLOTS="${{ github.event.client_payload.slots }}"
+            TASK="${{ github.event.client_payload.task }}"
+          fi
+          case "$SLOTS" in 1|2|3|4) ;; *) SLOTS=1 ;; esac
+          case "$TASK" in site-smoke|runtime-benchmark) ;; *) TASK=site-smoke ;; esac
+          MATRIX=$(seq 1 "$SLOTS" | jq -Rsc 'split("\n")[:-1] | map(tonumber)')
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "task=$TASK" >> "$GITHUB_OUTPUT"
+
+  slot:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        slot: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      max-parallel: 4
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Slot identity
+        run: |
+          echo "Kero cloud slot ${{ matrix.slot }}"
+          echo "CPU: $(nproc)"
+          free -h
+      - name: Site smoke
+        if: needs.prepare.outputs.task == 'site-smoke'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for u in \
+            "https://keromotoboy.com.br" \
+            "https://keromotoboy.com.br/rotas/" \
+            "https://keromotoboy.com.br/calculadora/"
+          do
+            code=$(curl -L -sS -o /dev/null -w "%{http_code}" --max-time 20 "$u")
+            echo "$u -> $code"
+            test "$code" -ge 200 -a "$code" -lt 400
+          done
+      - name: Runtime benchmark
+        if: needs.prepare.outputs.task == 'runtime-benchmark'
+        shell: bash
+        run: |
+          node -e 'const t=Date.now();let x=0;for(let i=0;i<5e7;i++)x=(x+i)%1000000007;console.log({slot:${{ matrix.slot }},ms:Date.now()-t,x})'

@@ -1,0 +1,29 @@
+version: 2.1
+
+jobs:
+  public-smoke:
+    docker:
+      - image: cimg/node:24.9
+    resource_class: small
+    steps:
+      - checkout
+      - run:
+          name: Kero public smoke
+          command: |
+            node - <<'NODE'
+            const urls=['https://keromotoboy.com.br','https://keromotoboy.com.br/rotas/','https://keromotoboy.com.br/calculadora/'];
+            let bad=0;
+            for(const u of urls){
+              try{
+                const r=await fetch(u,{redirect:'follow',signal:AbortSignal.timeout(20000)});
+                console.log(u,r.status);
+                if(!r.ok) bad++;
+              }catch(e){console.log(u,e.message);bad++}
+            }
+            process.exit(bad?2:0)
+            NODE
+
+workflows:
+  public-cloud:
+    jobs:
+      - public-smoke

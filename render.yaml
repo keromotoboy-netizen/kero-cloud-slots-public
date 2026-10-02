@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: kero-public-slot
+    runtime: node
+    plan: free
+    rootDir: render-slot
+    buildCommand: ""
+    startCommand: node server.mjs
+    autoDeployTrigger: off
+    healthCheckPath: /health

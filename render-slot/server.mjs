@@ -16,6 +16,12 @@ const server = http.createServer(async (req,res)=>{
     res.writeHead(results.every(x=>x.ok)?200:502,{'content-type':'application/json'});
     return res.end(JSON.stringify({ok:results.every(x=>x.ok),results}));
   }
+  if(req.url === '/benchmark'){
+    const t=Date.now(); let x=0;
+    for(let i=0;i<5e7;i++) x=(x+i)%1000000007;
+    res.writeHead(200,{'content-type':'application/json'});
+    return res.end(JSON.stringify({ok:true,ms:Date.now()-t,x,arch:process.arch,platform:process.platform}));
+  }
   res.writeHead(200,{'content-type':'text/plain'});res.end('Kero public cloud slot');
 });
 server.listen(port,'0.0.0.0');

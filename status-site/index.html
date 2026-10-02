@@ -1,0 +1,14 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kero Cloud Status</title><style>body{font-family:system-ui;margin:0;background:#111;color:#eee;padding:24px}h1{margin:0 0 8px}.muted{color:#999}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:20px}.card{background:#1b1b1b;border:1px solid #333;border-radius:12px;padding:16px}.ok{color:#6fda84}.bad{color:#ff6b6b}.num{font-size:28px;font-weight:700}button{margin-top:16px;padding:10px 14px}</style></head><body><h1>Kero Cloud Status</h1><div class="muted">Status público técnico • atualizado sob demanda</div><div id="summary" class="card" style="margin-top:18px">Carregando...</div><div id="grid" class="grid"></div><button onclick="load()">Atualizar</button><script>
+async function load(){
+ const summary=document.getElementById('summary'),grid=document.getElementById('grid'); grid.innerHTML=''; summary.textContent='Consultando...';
+ try{
+  const [h,s]=await Promise.all([
+   fetch('https://kero-public-slot.onrender.com/health',{cache:'no-store'}).then(r=>r.json()),
+   fetch('https://kero-public-slot.onrender.com/site-smoke',{cache:'no-store'}).then(async r=>({http:r.status,data:await r.json()}))
+  ]);
+  summary.innerHTML='<b>Render:</b> <span class="'+(h.ok?'ok':'bad')+'">'+(h.ok?'ONLINE':'OFFLINE')+'</span><br><span class="muted">'+new Date(h.time).toLocaleString()+'</span>';
+  for(const x of s.data.results||[]){const d=document.createElement('div');d.className='card';d.innerHTML='<b>'+new URL(x.url).pathname+'</b><div class="'+(x.ok?'ok':'bad')+'">'+(x.ok?'ONLINE':'ERRO')+'</div><div class="num">'+x.ms+' ms</div><div class="muted">HTTP '+x.status+'</div>';grid.appendChild(d)}
+ }catch(e){summary.innerHTML='<span class="bad">Falha ao consultar: '+e.message+'</span>'}
+}
+load(); setInterval(load,60000);
+</script></body></html>

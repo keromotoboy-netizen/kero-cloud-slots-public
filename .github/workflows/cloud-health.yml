@@ -1,0 +1,49 @@
+name: Kero Cloud Health
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-slim
+    timeout-minutes: 4
+    steps:
+      - name: Check public Kero cloud endpoints
+        shell: bash
+        run: |
+          node <<'NODE'
+          const endpoints = {
+            site: 'https://keromotoboy.com.br',
+            rotas: 'https://keromotoboy.com.br/rotas/',
+            calculadora: 'https://keromotoboy.com.br/calculadora/',
+            render_slot: 'https://kero-public-slot.onrender.com/health'
+          };
+          let failed=0;
+          const result={at:new Date().toISOString(), endpoints:{}};
+          for (const [name,url] of Object.entries(endpoints)) {
+            const t=Date.now();
+            try {
+              const r=await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(25000)});
+              result.endpoints[name]={ok:r.ok,status:r.status,ms:Date.now()-t};
+              if(!r.ok) failed++;
+            } catch(e) {
+              result.endpoints[name]={ok:false,status:0,ms:Date.now()-t,error:String(e.message||e)};
+              failed++;
+            }
+          }
+          console.log(JSON.stringify(result,null,2));
+          await import('node:fs').then(fs=>fs.writeFileSync('cloud-health.json',JSON.stringify(result,null,2)));
+          process.exitCode=failed?2:0;
+          NODE
+      - name: Upload health report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-health
+          path: cloud-health.json
+          retention-days: 7

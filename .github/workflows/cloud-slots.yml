@@ -7,15 +7,19 @@ on:
         description: Tarefa pública permitida
         required: true
         type: choice
-        options:
-          - site-smoke
-          - runtime-benchmark
+        options: [site-smoke, runtime-benchmark]
       slots:
-        description: Quantidade de slots paralelos (1-4)
+        description: Quantidade de slots paralelos
         required: true
-        default: "2"
+        default: "4"
         type: choice
-        options: ["1","2","3","4"]
+        options: ["1","2","4","8","12","16"]
+      runner:
+        description: Tipo de runner
+        required: true
+        default: linux
+        type: choice
+        options: [linux, windows, arm]
   repository_dispatch:
     types: [kero-cloud-task]
 
@@ -24,10 +28,11 @@ permissions:
 
 jobs:
   prepare:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
       task: ${{ steps.m.outputs.task }}
+      runner: ${{ steps.m.outputs.runner }}
     steps:
       - id: m
         shell: bash
@@ -35,15 +40,23 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             SLOTS="${{ inputs.slots }}"
             TASK="${{ inputs.task }}"
+            RUNNER="${{ inputs.runner }}"
           else
             SLOTS="${{ github.event.client_payload.slots }}"
             TASK="${{ github.event.client_payload.task }}"
+            RUNNER="${{ github.event.client_payload.runner }}"
           fi
-          case "$SLOTS" in 1|2|3|4) ;; *) SLOTS=1 ;; esac
+          case "$SLOTS" in 1|2|4|8|12|16) ;; *) SLOTS=1 ;; esac
           case "$TASK" in site-smoke|runtime-benchmark) ;; *) TASK=site-smoke ;; esac
+          case "$RUNNER" in
+            windows) LABEL=windows-latest ;;
+            arm) LABEL=ubuntu-24.04-arm ;;
+            *) LABEL=ubuntu-latest ;;
+          esac
           MATRIX=$(seq 1 "$SLOTS" | jq -Rsc 'split("\n")[:-1] | map(tonumber)')
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
           echo "task=$TASK" >> "$GITHUB_OUTPUT"
+          echo "runner=$LABEL" >> "$GITHUB_OUTPUT"
 
   slot:
     needs: prepare
@@ -51,31 +64,45 @@ jobs:
       fail-fast: false
       matrix:
         slot: ${{ fromJson(needs.prepare.outputs.matrix) }}
-      max-parallel: 4
-    runs-on: ubuntu-latest
+      max-parallel: 16
+    runs-on: ${{ needs.prepare.outputs.runner }}
     timeout-minutes: 5
     steps:
       - name: Slot identity
+        shell: bash
+        if: runner.os != 'Windows'
         run: |
-          echo "Kero cloud slot ${{ matrix.slot }}"
-          echo "CPU: $(nproc)"
-          free -h
+          echo "Kero cloud slot ${{ matrix.slot }} / ${{ runner.os }}"
+          echo "CPU: $(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc)"
+      - name: Slot identity Windows
+        shell: pwsh
+        if: runner.os == 'Windows'
+        run: |
+          Write-Host "Kero cloud slot ${{ matrix.slot }} / Windows"
+          Write-Host "CPU: $env:NUMBER_OF_PROCESSORS"
       - name: Site smoke
         if: needs.prepare.outputs.task == 'site-smoke'
         shell: bash
         run: |
-          set -euo pipefail
-          for u in \
-            "https://keromotoboy.com.br" \
-            "https://keromotoboy.com.br/rotas/" \
-            "https://keromotoboy.com.br/calculadora/"
-          do
-            code=$(curl -L -sS --retry 2 --retry-all-errors --retry-delay 1 -o /dev/null -w "%{http_code}" --max-time 20 "$u")
-            echo "$u -> $code"
-            test "$code" -ge 200 -a "$code" -lt 400
-          done
+          node - <<'NODE'
+          const urls=['https://keromotoboy.com.br','https://keromotoboy.com.br/rotas/','https://keromotoboy.com.br/calculadora/'];
+          let bad=0;
+          for (const u of urls) {
+            let ok=false;
+            for(let a=1;a<=3&&!ok;a++){
+              try {
+                const r=await fetch(u,{redirect:'follow',signal:AbortSignal.timeout(20000)});
+                console.log(u,'->',r.status,'attempt',a);
+                ok=r.status>=200&&r.status<400;
+              } catch(e) { console.log(u,'->',e.message,'attempt',a); }
+              if(!ok) await new Promise(r=>setTimeout(r,1000));
+            }
+            if(!ok) bad++;
+          }
+          process.exit(bad?2:0);
+          NODE
       - name: Runtime benchmark
         if: needs.prepare.outputs.task == 'runtime-benchmark'
         shell: bash
         run: |
-          node -e 'const t=Date.now();let x=0;for(let i=0;i<5e7;i++)x=(x+i)%1000000007;console.log({slot:${{ matrix.slot }},ms:Date.now()-t,x})'
+          node -e 'const t=Date.now();let x=0;for(let i=0;i<5e7;i++)x=(x+i)%1000000007;console.log({slot:${{ matrix.slot }},ms:Date.now()-t,x,platform:process.platform,arch:process.arch})'

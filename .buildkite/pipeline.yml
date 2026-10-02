@@ -1,0 +1,16 @@
+steps:
+  - label: "Kero cloud smoke %N/%T"
+    command: |
+      node - <<'NODE'
+      const urls=['https://keromotoboy.com.br','https://keromotoboy.com.br/rotas/','https://keromotoboy.com.br/calculadora/'];
+      let bad=0;
+      for(const u of urls){
+        try{
+          const r=await fetch(u,{redirect:'follow',signal:AbortSignal.timeout(20000)});
+          console.log(u,r.status);
+          if(!r.ok) bad++;
+        }catch(e){console.error(u,e.message);bad++}
+      }
+      process.exit(bad?2:0);
+      NODE
+    parallelism: 4

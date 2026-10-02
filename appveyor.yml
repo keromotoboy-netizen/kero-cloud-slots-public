@@ -1,0 +1,14 @@
+image: Visual Studio 2022
+build: off
+test: off
+environment:
+  matrix:
+    - SLOT: 1
+script:
+  - ps: |
+      $urls=@('https://keromotoboy.com.br','https://keromotoboy.com.br/rotas/','https://keromotoboy.com.br/calculadora/')
+      foreach($u in $urls){
+        $r=Invoke-WebRequest $u -UseBasicParsing -MaximumRedirection 5 -TimeoutSec 20
+        Write-Host "$u -> $($r.StatusCode)"
+        if($r.StatusCode -lt 200 -or $r.StatusCode -ge 400){throw "smoke failed"}
+      }

@@ -1,9 +1,8 @@
 name: Kero Cloud Health
 
 on:
+  # FREE-MAX: sem polling. Executar manualmente ou por evento explícito.
   workflow_dispatch:
-  schedule:
-    - cron: "*/30 * * * *"
 
 permissions:
   contents: read

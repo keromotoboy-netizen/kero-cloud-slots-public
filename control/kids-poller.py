@@ -11,7 +11,7 @@ JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.5"
+CONTROL_VERSION = "2026.10.05.6"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -141,6 +141,27 @@ def action_s24_open_url(params):
     q=base64.b64encode(url.encode()).decode()
     cmd="u=$(printf '%s' '"+q+"' | base64 -d); termux-open-url \"$u\""
     return ssh_s24(cmd,timeout=15)
+
+def action_s24_ssh_rescue_status(params):
+    logp=pathlib.Path.home()/"kero-mobile"/"s24-ssh-rescue.log"
+    lines=[]
+    try: lines=logp.read_text(errors="replace").splitlines()[-12:]
+    except Exception: pass
+    return {"ssh":tcp(PHONE,8022),"agent":tcp(PHONE,8770),"recent":lines}
+
+def action_s24_ssh_rescue(params):
+    script=pathlib.Path.home()/"kero-mobile"/"s24-ssh-rescue.sh"
+    if not script.exists(): raise FileNotFoundError("rescue_script_missing")
+    p=subprocess.run([str(script)],capture_output=True,text=True,timeout=25)
+    logp=pathlib.Path.home()/"kero-mobile"/"s24-ssh-rescue.log"
+    lines=[]
+    try: lines=logp.read_text(errors="replace").splitlines()[-8:]
+    except Exception: pass
+    return {"exit":p.returncode,"ssh":tcp(PHONE,8022),"agent":tcp(PHONE,8770),"stdout":p.stdout[-1500:],"stderr":p.stderr[-1500:],"recent":lines}
+
+def action_cinza_connectivity(params):
+    ports=[22,445,3389,5985,5986]
+    return {"host":CINZA,"ports":{str(p):tcp(CINZA,p,1.5) for p in ports}}
 
 def action_preto_status(params):
     s=r"""$os=Get-CimInstance Win32_OperatingSystem;$cs=Get-CimInstance Win32_ComputerSystem;$d=Get-PSDrive C;[pscustomobject]@{host=$env:COMPUTERNAME;user=$env:USERNAME;uptime_s=[int]((Get-Date)-$os.LastBootUpTime).TotalSeconds;ram_total_gb=[math]::Round($cs.TotalPhysicalMemory/1GB,1);ram_free_gb=[math]::Round($os.FreePhysicalMemory*1KB/1GB,1);c_free_gb=[math]::Round($d.Free/1GB,1);sshd=(Get-Service sshd -ErrorAction SilentlyContinue).Status.ToString();tailscale=(Get-Service Tailscale -ErrorAction SilentlyContinue).Status.ToString()}|ConvertTo-Json -Compress"""
@@ -310,6 +331,9 @@ ACTIONS = {
   "status.global": (1, action_status_global),
   "s24.health": (1, action_s24_health),
   "s24.open_url": (1, action_s24_open_url),
+  "s24.ssh.rescue.status": (1, action_s24_ssh_rescue_status),
+  "s24.ssh.rescue": (2, action_s24_ssh_rescue),
+  "cinza.connectivity": (1, action_cinza_connectivity),
   "preto.status": (1, action_preto_status),
   "preto.admin.status": (1, action_preto_admin_status),
   "preto.baseline.status": (1, action_preto_baseline_status),

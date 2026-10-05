@@ -234,6 +234,22 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T18:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1454-kids-version-v9",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T19:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1454-preto-cinza-smb-status",
+      "target": "kids",
+      "action": "preto.cinza.smb.status",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T19:00:00Z"
     }
   ]
 }

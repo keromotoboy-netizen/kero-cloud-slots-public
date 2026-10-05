@@ -1,30 +1,78 @@
 version: 2.1
 
-# Kero PUBLIC_SAFE CircleCI bootstrap validated from ChatGPT.
 jobs:
-  public-smoke:
+  public-worker:
     docker:
-      - image: cimg/node:24.9
+      - image: cimg/python:3.12
     resource_class: small
     steps:
       - checkout
+
       - run:
-          name: Kero public smoke
+          name: Claim Kero PUBLIC_SAFE job via CircleCI OIDC
           command: |
-            node - <<'NODE'
-            const urls=['https://keromotoboy.com.br','https://keromotoboy.com.br/rotas/','https://keromotoboy.com.br/calculadora/'];
-            let bad=0;
-            for(const u of urls){
-              try{
-                const r=await fetch(u,{redirect:'follow',signal:AbortSignal.timeout(20000)});
-                console.log(u,r.status);
-                if(!r.ok) bad++;
-              }catch(e){console.log(u,e.message);bad++}
-            }
-            process.exit(bad?2:0)
-            NODE
+            set -euo pipefail
+            test -n "${CIRCLE_OIDC_TOKEN_V2:-}"
+            curl -fsS               -H "Authorization: Bearer ${CIRCLE_OIDC_TOKEN_V2}"               -H "Content-Type: application/json"               -d '{"action":"claim","capabilities":["health","sha256","text-stats","json-summary","json-normalize","manifest"]}'               "https://noqdjfuqaqlicugbqihv.supabase.co/functions/v1/kero-brain-github-worker"               > claim.json
+            python - <<'PY'
+            import json, os
+            with open("claim.json",encoding="utf-8") as f:
+                r=json.load(f)
+            if not r.get("ok"):
+                raise SystemExit(r.get("error","claim_failed"))
+            claimed=bool(r.get("job"))
+            with open(os.environ["BASH_ENV"],"a",encoding="utf-8") as f:
+                f.write("export KERO_CLAIMED="+("true" if claimed else "false")+"\n")
+            if claimed:
+                j=r["job"]
+                print({"claimed":True,"id":j["id"],"task":j["task"],"classification":j["classification"]})
+            else:
+                print({"claimed":False,"reason":r.get("reason","empty_queue")})
+            PY
+
+      - run:
+          name: Execute allowlisted PUBLIC_SAFE worker
+          command: |
+            if [ "${KERO_CLAIMED:-false}" != "true" ]; then
+              echo "No queued PUBLIC_SAFE job"
+              exit 0
+            fi
+            KERO_CLAIM_FILE=claim.json KERO_RESULT_FILE=result.json python worker.py
+
+      - run:
+          name: Complete Kero job
+          when: always
+          command: |
+            if [ "${KERO_CLAIMED:-false}" != "true" ]; then
+              exit 0
+            fi
+            python - <<'PY'
+            import json
+            with open("claim.json",encoding="utf-8") as f:
+                claim=json.load(f)
+            try:
+                with open("result.json",encoding="utf-8") as f:
+                    result=json.load(f)
+            except Exception:
+                result={"ok":False,"error":"worker_result_missing"}
+            if result.get("ok"):
+                body={"action":"complete","id":claim["job"]["id"],"result":{"task":result.get("task"),"result":result.get("result")}}
+            else:
+                body={"action":"complete","id":claim["job"]["id"],"error":str(result.get("error","worker_failed"))[:500]}
+            with open("complete.json","w",encoding="utf-8") as f:
+                json.dump(body,f,separators=(",",":"))
+            PY
+            curl -fsS               -H "Authorization: Bearer ${CIRCLE_OIDC_TOKEN_V2}"               -H "Content-Type: application/json"               --data-binary @complete.json               "https://noqdjfuqaqlicugbqihv.supabase.co/functions/v1/kero-brain-github-worker"               > complete-response.json
+            python - <<'PY'
+            import json
+            with open("complete-response.json",encoding="utf-8") as f:
+                r=json.load(f)
+            if not r.get("ok"):
+                raise SystemExit(r.get("error","complete_failed"))
+            print(r.get("job"))
+            PY
 
 workflows:
   public-cloud:
     jobs:
-      - public-smoke
+      - public-worker

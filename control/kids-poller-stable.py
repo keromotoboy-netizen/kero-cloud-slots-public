@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import base64, fcntl, json, os, pathlib, socket, subprocess, sys, tempfile, time, urllib.request
+import base64, fcntl, hashlib, hmac, json, os, pathlib, socket, subprocess, sys, tempfile, time, urllib.request
 from datetime import datetime, timezone
 
 BASE = pathlib.Path.home()/".config"/"kero-control"
@@ -14,14 +14,14 @@ RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 SUPABASE_URL = "https://noqdjfuqaqlicugbqihv.supabase.co"
 SUPABASE_KEY = "sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.stable.1"
+CONTROL_VERSION = "2026.10.05.stable.2"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
 PS = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 SERVICE_ALLOW = {"sshd","Tailscale","KeroDeviceAgent","KeroWatchdog"}
 MIN_FETCH_SECONDS = 60
-SELF_UPDATE_SECONDS = 900
+SELF_UPDATE_SECONDS = 180
 
 BASE.mkdir(parents=True, exist_ok=True)
 _LOCK_HANDLE=open(BASE/"poller.lock","w")
@@ -178,6 +178,22 @@ def action_s24_agent_start_sshd(params):
 
 def action_s24_agent_open_billing(params):
     return s24_agent_task("open_url","https://github.com/settings/billing")
+
+def action_kids_mobile_worker_status(params):
+    target=str(params.get("target","")).lower()
+    urls={
+      "preto":"https://desktop-t7k7etj.tailad06f5.ts.net/mobile-worker/status",
+      "cinza":"https://laptop-a0lamkb2.tailad06f5.ts.net/mobile-worker/status",
+    }
+    url=urls.get(target)
+    if not url:
+        raise ValueError("target_not_allowlisted")
+    secret=(pathlib.Path.home()/"kero-mobile"/"worker.token").read_text().strip().encode()
+    token=hmac.new(secret,b"kero-remote-v1",hashlib.sha256).hexdigest()
+    req=urllib.request.Request(url,headers={"Authorization":"Bearer "+token,"User-Agent":"kero-kids-control-stable/2"})
+    with urllib.request.urlopen(req,timeout=8) as r:
+        obj=json.loads(r.read() or b"{}")
+    return {"target":target,"heartbeat":obj.get("heartbeat") or {},"queue":obj.get("queue"),"ok":True}
 
 def action_kids_read_control_source(params):
     name=str(params.get("name",""))
@@ -459,6 +475,7 @@ ACTIONS = {
   "s24.agent.start_sshd": (2, action_s24_agent_start_sshd),
   "s24.agent.open_billing": (2, action_s24_agent_open_billing),
   "kids.read_control_source": (1, action_kids_read_control_source),
+  "kids.mobile_worker.status": (1, action_kids_mobile_worker_status),
   "s24.open_url": (1, action_s24_open_url),
   "s24.ssh.rescue.status": (1, action_s24_ssh_rescue_status),
   "s24.ssh.rescue": (2, action_s24_ssh_rescue),

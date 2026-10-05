@@ -2,33 +2,9 @@
   "version": 1,
   "jobs": [
     {
-      "id": "kero-20261005-0210-preto-baseline-install-v2",
+      "id": "kero-20261005-0213-kids-version",
       "target": "kids",
-      "action": "preto.baseline.install",
-      "params": {},
-      "risk": 2,
-      "expires_at": "2026-10-05T03:30:00Z"
-    },
-    {
-      "id": "kero-20261005-0210-preto-agent-install",
-      "target": "kids",
-      "action": "preto.agent.install",
-      "params": {},
-      "risk": 2,
-      "expires_at": "2026-10-05T03:30:00Z"
-    },
-    {
-      "id": "kero-20261005-0210-preto-agent-status",
-      "target": "kids",
-      "action": "preto.agent.status",
-      "params": {},
-      "risk": 1,
-      "expires_at": "2026-10-05T03:30:00Z"
-    },
-    {
-      "id": "kero-20261005-0210-preto-agent-selftest",
-      "target": "kids",
-      "action": "preto.agent.selftest",
+      "action": "kids.version",
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T03:30:00Z"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import base64, fcntl, json, os, pathlib, socket, subprocess, sys, tempfile, time, urllib.request
+import base64, json, os, pathlib, socket, subprocess, sys, tempfile, time, urllib.request
 from datetime import datetime, timezone
 
 BASE = pathlib.Path.home()/".config"/"kero-control"
@@ -8,25 +8,19 @@ META = BASE/"poll-meta.json"
 KEY = BASE/"result-ed25519.pem"
 REPO = "keromotoboy-netizen/kero-cloud-slots-public"
 JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=main"
-JOBS_DIR_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs?ref=main"
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.9"
+CONTROL_VERSION = "2026.10.05.13-recovery"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
 PS = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 SERVICE_ALLOW = {"sshd","Tailscale","KeroDeviceAgent","KeroWatchdog"}
 MIN_FETCH_SECONDS = 30
-SELF_UPDATE_SECONDS = 600
+SELF_UPDATE_SECONDS = 120
 
 BASE.mkdir(parents=True, exist_ok=True)
-_LOCK_HANDLE=open(BASE/"poller.lock","w")
-try:
-    fcntl.flock(_LOCK_HANDLE.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
-except BlockingIOError:
-    sys.exit(0)
 
 def log(event, **kw):
     obj={"ts":datetime.now(timezone.utc).isoformat(),"event":event,**kw}
@@ -47,17 +41,14 @@ def atomic_json(path,obj):
     tmp.write_text(json.dumps(obj,separators=(",",":")))
     os.replace(tmp,path)
 
-def github_json(url):
+def github_content(url):
     req=urllib.request.Request(url,headers={
-      "User-Agent":"kero-kids-control/3",
+      "User-Agent":"kero-kids-control/2",
       "Accept":"application/vnd.github+json",
       "Cache-Control":"no-cache"
     })
     with urllib.request.urlopen(req,timeout=12) as r:
-        return json.loads(r.read())
-
-def github_content(url):
-    obj=github_json(url)
+        obj=json.loads(r.read())
     raw=base64.b64decode(obj["content"])
     return raw, obj.get("sha","")
 
@@ -87,47 +78,21 @@ def tcp(host,port,timeout=2):
     except Exception:
         return False
 
-def fetch_jobs(meta, seen):
+def fetch_jobs(meta):
     t=time.time()
     if t-float(meta.get("jobs_checked",0)) < MIN_FETCH_SECONDS:
         return None,meta
-    jobs=[]
-    try:
-        listing=github_json(JOBS_DIR_API)
-        if isinstance(listing,list):
-            files=[x for x in listing if x.get("type")=="file" and str(x.get("name","")).endswith(".json")]
-            files=sorted(files,key=lambda x:x.get("name",""))[-100:]
-            for item in files:
-                jid=str(item.get("name",""))[:-5]
-                if not jid or jid in seen:
-                    continue
-                raw,_=github_content(item["url"])
-                job=json.loads(raw)
-                if str(job.get("id","")) != jid:
-                    log("job_file_rejected",file=item.get("name"),reason="id_mismatch")
-                    continue
-                jobs.append(job)
-        if not jobs and not any(str(x.get("name","")).endswith(".json") for x in (listing if isinstance(listing,list) else [])):
-            raw,sha=github_content(JOBS_API)
-            obj=json.loads(raw)
-            if obj.get("version") != 1 or not isinstance(obj.get("jobs"),list):
-                raise ValueError("invalid_manifest")
-            jobs=[j for j in obj["jobs"] if str(j.get("id","")) not in seen]
-            meta["jobs_sha"]=sha
-    except urllib.error.HTTPError as e:
-        if e.code==404:
-            raw,sha=github_content(JOBS_API)
-            obj=json.loads(raw)
-            jobs=[j for j in obj.get("jobs",[]) if str(j.get("id","")) not in seen]
-            meta["jobs_sha"]=sha
-        else:
-            raise
+    raw,sha=github_content(JOBS_API)
+    obj=json.loads(raw)
+    if obj.get("version") != 1 or not isinstance(obj.get("jobs"),list):
+        raise ValueError("invalid_manifest")
     meta["jobs_checked"]=t
+    meta["jobs_sha"]=sha
     atomic_json(META,meta)
-    return jobs,meta
+    return obj["jobs"],meta
 
 def ssh_preto(script, timeout=30):
-    full="$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();$ProgressPreference='SilentlyContinue';$VerbosePreference='SilentlyContinue';$InformationPreference='SilentlyContinue';"+script
+    full="$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();"+script
     enc=base64.b64encode(full.encode("utf-16le")).decode()
     remote=PS+" -NoProfile -NonInteractive -EncodedCommand "+enc
     p=subprocess.run(["ssh","-o","BatchMode=yes","-o","ConnectTimeout=5","DELL@"+PRETO,remote],
@@ -156,38 +121,6 @@ def action_status_global(params):
 def action_s24_health(params):
     with urllib.request.urlopen("http://"+PHONE+":8770/health",timeout=5) as r:
         return json.loads(r.read())
-
-def s24_agent_task(op,data="",timeout=12):
-    token=(pathlib.Path.home()/"kero-mobile"/"worker.token").read_text().strip()
-    payload=json.dumps({"op":op,"data":data},ensure_ascii=False).encode()
-    req=urllib.request.Request(
-      "http://"+PHONE+":8770/task",
-      data=payload,
-      headers={"Content-Type":"application/json","X-Kero-Token":token},
-      method="POST"
-    )
-    try:
-        with urllib.request.urlopen(req,timeout=timeout) as r:
-            raw=r.read().decode("utf-8",errors="replace")
-            try: return {"http":r.status,"body":json.loads(raw)}
-            except Exception: return {"http":r.status,"body":raw[:4000]}
-    except urllib.error.HTTPError as e:
-        raw=e.read().decode("utf-8",errors="replace")
-        try: body=json.loads(raw)
-        except Exception: body=raw[:4000]
-        return {"http":e.code,"body":body}
-
-def action_s24_agent_queue_status(params):
-    return s24_agent_task("queue_status")
-
-def action_s24_agent_sshd_status(params):
-    return s24_agent_task("sshd_status")
-
-def action_s24_agent_start_sshd(params):
-    return s24_agent_task("start_sshd")
-
-def action_s24_agent_open_billing(params):
-    return s24_agent_task("open_url","https://github.com/settings/billing")
 
 def action_kids_read_control_source(params):
     name=str(params.get("name",""))
@@ -226,19 +159,6 @@ def action_s24_open_url(params):
     q=base64.b64encode(url.encode()).decode()
     cmd="u=$(printf '%s' '"+q+"' | base64 -d); termux-open-url \"$u\""
     return ssh_s24(cmd,timeout=15)
-
-def action_s24_api_probe(params):
-    dispatcher=pathlib.Path.home()/"kero-mobile"/"s24-tail-task.py"
-    if not dispatcher.exists(): raise FileNotFoundError("dispatcher_missing")
-    ops=["sysinfo","status","capabilities","ping","help"]
-    out={}
-    for op in ops:
-        try:
-            p=subprocess.run(["python3",str(dispatcher),op],capture_output=True,text=True,timeout=12)
-            out[op]={"exit":p.returncode,"stdout":p.stdout[-2500:],"stderr":p.stderr[-800:]}
-        except Exception as e:
-            out[op]={"error":type(e).__name__+":"+str(e)[:300]}
-    return out
 
 def action_s24_ssh_rescue_status(params):
     logp=pathlib.Path.home()/"kero-mobile"/"s24-ssh-rescue.log"
@@ -287,14 +207,6 @@ Start-Sleep -Seconds 1
 Start-Sleep -Seconds 2
 [pscustomobject]@{attempted=$true;serial=$serial}|ConvertTo-Json -Compress"""
     return ssh_preto(s,timeout=35)
-
-def action_preto_cinza_smb_status(params):
-    s=r"""$hostip='100.121.228.117'
-$public=Test-Path ('\\'+$hostip+'\Users\Public')
-$admin=Test-Path ('\\'+$hostip+'\C$')
-$sc=@(& sc.exe ('\\'+$hostip) query Tailscale 2>&1)
-[pscustomobject]@{host=$hostip;public_share=$public;admin_share=$admin;service_query=@($sc)}|ConvertTo-Json -Compress -Depth 5"""
-    return ssh_preto(s,timeout=20)
 
 def action_preto_status(params):
     s=r"""$os=Get-CimInstance Win32_OperatingSystem;$cs=Get-CimInstance Win32_ComputerSystem;$d=Get-PSDrive C;[pscustomobject]@{host=$env:COMPUTERNAME;user=$env:USERNAME;uptime_s=[int]((Get-Date)-$os.LastBootUpTime).TotalSeconds;ram_total_gb=[math]::Round($cs.TotalPhysicalMemory/1GB,1);ram_free_gb=[math]::Round($os.FreePhysicalMemory*1KB/1GB,1);c_free_gb=[math]::Round($d.Free/1GB,1);sshd=(Get-Service sshd -ErrorAction SilentlyContinue).Status.ToString();tailscale=(Get-Service Tailscale -ErrorAction SilentlyContinue).Status.ToString()}|ConvertTo-Json -Compress"""
@@ -463,18 +375,12 @@ ACTIONS = {
   "kids.version": (1, action_kids_version),
   "status.global": (1, action_status_global),
   "s24.health": (1, action_s24_health),
-  "s24.api.probe": (1, action_s24_api_probe),
-  "s24.agent.queue_status": (1, action_s24_agent_queue_status),
-  "s24.agent.sshd_status": (1, action_s24_agent_sshd_status),
-  "s24.agent.start_sshd": (2, action_s24_agent_start_sshd),
-  "s24.agent.open_billing": (2, action_s24_agent_open_billing),
   "kids.read_control_source": (1, action_kids_read_control_source),
   "s24.open_url": (1, action_s24_open_url),
   "s24.ssh.rescue.status": (1, action_s24_ssh_rescue_status),
   "s24.ssh.rescue": (2, action_s24_ssh_rescue),
   "cinza.connectivity": (1, action_cinza_connectivity),
   "preto.status": (1, action_preto_status),
-  "preto.cinza.smb.status": (1, action_preto_cinza_smb_status),
   "preto.s24.adb.status": (1, action_preto_s24_adb_status),
   "preto.s24.ssh.rescue": (2, action_preto_s24_ssh_rescue),
   "preto.admin.status": (1, action_preto_admin_status),
@@ -520,14 +426,14 @@ def main():
     meta=load_json(META,{})
     try: meta=maybe_self_update(meta)
     except Exception as e: log("self_update_error",error=type(e).__name__+":"+str(e)[:250])
-    seen=load_json(STATE,{})
-    cutoff=time.time()-7*86400
-    seen={k:v for k,v in seen.items() if float(v)>cutoff}
     try:
-        jobs,meta=fetch_jobs(meta,seen)
+        jobs,meta=fetch_jobs(meta)
     except Exception as e:
         log("fetch_error",error=type(e).__name__+":"+str(e)[:250]); return 1
     if jobs is None: return 0
+    seen=load_json(STATE,{})
+    cutoff=time.time()-7*86400
+    seen={k:v for k,v in seen.items() if float(v)>cutoff}
     for job in jobs:
         jid=str(job.get("id",""))
         if not jid or jid in seen: continue

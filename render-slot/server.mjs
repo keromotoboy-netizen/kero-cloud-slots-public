@@ -187,24 +187,6 @@ const server=http.createServer(async(req,res)=>{
       if(!cc.ok) return json(res,502,{ok:false,error:'circleci_dispatch_failed',status:cc.status,detail:out});
       return json(res,202,{ok:true,accepted:true,provider:'circleci',slots:Number(slots),pipeline:out});
     }
-    if(req.method==='GET' && req.url==='/github-billing-usage'){
-      if(!secureEq(req.headers['x-kero-worker-token'],process.env.KERO_WORKER_TOKEN)) return json(res,401,{ok:false,error:'unauthorized'});
-      const token=String(process.env.GITHUB_PUBLIC_DISPATCH_TOKEN||'');
-      if(!token) return json(res,503,{ok:false,error:'github_token_missing'});
-      const gh=await fetch('https://api.github.com/users/keromotoboy-netizen/settings/billing/usage/summary?year=2026&month=10&product=Actions',{
-        headers:{
-          'authorization':'Bearer '+token,
-          'accept':'application/vnd.github+json',
-          'x-github-api-version':'2026-03-10',
-          'user-agent':'kero-billing-reader'
-        },
-        signal:AbortSignal.timeout(20000)
-      });
-      const txt=await gh.text(); let out; try{out=JSON.parse(txt)}catch{out={text:txt.slice(0,1000)}}
-      if(!gh.ok) return json(res,gh.status,{ok:false,error:'github_billing_read_failed',status:gh.status,detail:out});
-      const items=Array.isArray(out?.usageItems)?out.usageItems.filter(x=>String(x?.product||'').toLowerCase()==='actions'):[];
-      return json(res,200,{ok:true,timePeriod:out?.timePeriod||null,user:out?.user||null,usageItems:items});
-    }
     if(req.method==='POST' && req.url==='/execute'){
       if(!secureEq(req.headers['x-kero-worker-token'],process.env.KERO_WORKER_TOKEN)) return json(res,401,{ok:false,error:'unauthorized'});
       const body=await readJson(req), task=String(body?.task||''), fn=tasks[task];

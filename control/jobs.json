@@ -444,6 +444,16 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T19:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1546-read-background-watch",
+      "target": "kids",
+      "action": "kids.read_control_source",
+      "params": {
+        "name": "background-watch.sh"
+      },
+      "risk": 1,
+      "expires_at": "2026-10-05T19:30:00Z"
     }
   ]
 }

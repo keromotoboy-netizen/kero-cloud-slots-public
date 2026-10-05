@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import base64, json, os, pathlib, socket, subprocess, sys, tempfile, time, urllib.request
+import base64, fcntl, json, os, pathlib, socket, subprocess, sys, tempfile, time, urllib.request
 from datetime import datetime, timezone
 
 BASE = pathlib.Path.home()/".config"/"kero-control"
@@ -12,7 +12,7 @@ JOBS_DIR_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs?ref=m
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.11"
+CONTROL_VERSION = "2026.10.05.12"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -22,6 +22,11 @@ MIN_FETCH_SECONDS = 30
 SELF_UPDATE_SECONDS = 600
 
 BASE.mkdir(parents=True, exist_ok=True)
+_LOCK_HANDLE=open(BASE/"poller.lock","w")
+try:
+    fcntl.flock(_LOCK_HANDLE.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
+except BlockingIOError:
+    sys.exit(0)
 
 def log(event, **kw):
     obj={"ts":datetime.now(timezone.utc).isoformat(),"event":event,**kw}

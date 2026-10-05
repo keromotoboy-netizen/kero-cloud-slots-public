@@ -163,6 +163,28 @@ const server=http.createServer(async(req,res)=>{
       }
       return json(res,202,{ok:true,accepted:true,task,slots,runner});
     }
+    if(req.method==='POST' && req.url==='/dispatch-circleci'){
+      if(!secureEq(req.headers['x-kero-worker-token'],process.env.KERO_WORKER_TOKEN)) return json(res,401,{ok:false,error:'unauthorized'});
+      const body=await readJson(req);
+      const branch=String(body?.branch||'main');
+      if(branch!=='main') return json(res,400,{ok:false,error:'branch_not_allowed'});
+      const token=String(process.env.CIRCLECI_API_TOKEN||'');
+      if(!token) return json(res,503,{ok:false,error:'circleci_token_missing'});
+      const cc=await fetch('https://circleci.com/api/v2/project/gh/keromotoboy-netizen/kero-cloud-slots-public/pipeline',{
+        method:'POST',
+        headers:{
+          'Circle-Token':token,
+          'Accept':'application/json',
+          'Content-Type':'application/json',
+          'User-Agent':'kero-render-dispatcher'
+        },
+        body:JSON.stringify({branch:'main'}),
+        signal:AbortSignal.timeout(20000)
+      });
+      const txt=await cc.text(); let out; try{out=JSON.parse(txt)}catch{out={text:txt.slice(0,500)}}
+      if(!cc.ok) return json(res,502,{ok:false,error:'circleci_dispatch_failed',status:cc.status,detail:out});
+      return json(res,202,{ok:true,accepted:true,provider:'circleci',pipeline:out});
+    }
     if(req.method==='POST' && req.url==='/execute'){
       if(!secureEq(req.headers['x-kero-worker-token'],process.env.KERO_WORKER_TOKEN)) return json(res,401,{ok:false,error:'unauthorized'});
       const body=await readJson(req), task=String(body?.task||''), fn=tasks[task];

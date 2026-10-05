@@ -11,7 +11,7 @@ JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.4"
+CONTROL_VERSION = "2026.10.05.5"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -248,6 +248,63 @@ def action_preto_service_restart(params):
     s=f"Restart-Service -Name '{name}' -ErrorAction Stop; Get-Service -Name '{name}'|Select Name,Status,StartType|ConvertTo-Json -Compress"
     return ssh_preto(s)
 
+
+def action_preto_agent_debug(params):
+    s=r"""$ErrorActionPreference='SilentlyContinue'
+$root='C:\ProgramData\Kero'
+$agent=Join-Path $root 'agent\agent.ps1'
+$stdout=Join-Path $root 'logs\agent-debug.stdout.log'
+$stderr=Join-Path $root 'logs\agent-debug.stderr.log'
+Remove-Item $stdout,$stderr -Force -ErrorAction SilentlyContinue
+$p=Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$agent) -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru -WindowStyle Hidden
+Start-Sleep -Seconds 4
+$running=-not $p.HasExited
+$code=if($p.HasExited){$p.ExitCode}else{$null}
+if($running){Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}
+[pscustomobject]@{
+  running_after_4s=$running
+  exit_code=$code
+  stdout=if(Test-Path $stdout){(Get-Content -Raw $stdout)}else{''}
+  stderr=if(Test-Path $stderr){(Get-Content -Raw $stderr)}else{''}
+  agent_log=if(Test-Path (Join-Path $root 'logs\agent.log')){@(Get-Content (Join-Path $root 'logs\agent.log') -Tail 10)}else{@()}
+}|ConvertTo-Json -Compress -Depth 5"""
+    return ssh_preto(s,timeout=20)
+
+def action_preto_agent_repair(params):
+    s=r"""$ErrorActionPreference='Stop'
+$root='C:\ProgramData\Kero'
+$agent='C:\ProgramData\Kero\agent\agent.ps1'
+$wrap='C:\ProgramData\Kero\agent\launch.ps1'
+$wrapper=@'
+$ErrorActionPreference='Stop'
+$log='C:\ProgramData\Kero\logs\agent-launch.log'
+try {
+  Add-Content -Path $log -Value ((Get-Date).ToString('o')+' launch')
+  & 'C:\ProgramData\Kero\agent\agent.ps1'
+} catch {
+  Add-Content -Path $log -Value ((Get-Date).ToString('o')+' fatal '+$_.Exception.ToString())
+  exit 1
+}
+'@
+Set-Content -Path $wrap -Value $wrapper -Encoding UTF8
+$act=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\ProgramData\Kero\agent\launch.ps1"'
+$tr=New-ScheduledTaskTrigger -AtStartup
+$settings=New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName 'KeroDeviceAgent' -Action $act -Trigger $tr -Settings $settings -User 'SYSTEM' -RunLevel Highest -Force|Out-Null
+Start-ScheduledTask -TaskName 'KeroDeviceAgent'
+Start-Sleep -Seconds 5
+$task=Get-ScheduledTask -TaskName 'KeroDeviceAgent'
+$info=Get-ScheduledTaskInfo -TaskName 'KeroDeviceAgent'
+$proc=Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -like '*Kero\agent\launch.ps1*' -or $_.CommandLine -like '*Kero\agent\agent.ps1*'}|Select-Object -First 1 ProcessId,CommandLine
+[pscustomobject]@{
+ task_state=$task.State.ToString()
+ last_result=$info.LastTaskResult
+ process=$proc
+ launch_log=if(Test-Path 'C:\ProgramData\Kero\logs\agent-launch.log'){@(Get-Content 'C:\ProgramData\Kero\logs\agent-launch.log' -Tail 10)}else{@()}
+ agent_log=if(Test-Path 'C:\ProgramData\Kero\logs\agent.log'){@(Get-Content 'C:\ProgramData\Kero\logs\agent.log' -Tail 10)}else{@()}
+}|ConvertTo-Json -Compress -Depth 6"""
+    return ssh_preto(s,timeout=30)
+
 ACTIONS = {
   "kids.version": (1, action_kids_version),
   "status.global": (1, action_status_global),
@@ -262,6 +319,8 @@ ACTIONS = {
   "preto.agent.syntax": (1, action_preto_agent_syntax),
   "preto.agent.install": (2, action_preto_agent_install),
   "preto.agent.diagnostics": (1, action_preto_agent_diagnostics),
+  "preto.agent.debug": (1, action_preto_agent_debug),
+  "preto.agent.repair": (2, action_preto_agent_repair),
   "preto.agent.selftest": (1, action_preto_agent_selftest),
   "preto.disk": (1, action_preto_disk),
   "preto.process.top": (1, action_preto_process_top),

@@ -1,0 +1,40 @@
+name: control-lint
+
+on:
+  push:
+    paths:
+      - "control/kids-poller.py"
+      - "control/windows/kero-agent.ps1"
+      - ".github/workflows/control-lint.yml"
+  pull_request:
+    paths:
+      - "control/kids-poller.py"
+      - "control/windows/kero-agent.ps1"
+      - ".github/workflows/control-lint.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-control-plane:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile KIDS poller
+        run: python3 -m py_compile control/kids-poller.py
+      - name: Parse Windows agent
+        shell: pwsh
+        run: |
+          $tokens=$null
+          $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "control/windows/kero-agent.ps1",
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if (@($errors).Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }

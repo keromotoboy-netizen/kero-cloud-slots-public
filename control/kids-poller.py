@@ -11,7 +11,7 @@ JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.13-recovery"
+CONTROL_VERSION = "2026.10.05.14-recovery"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"

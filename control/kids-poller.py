@@ -89,10 +89,17 @@ def fetch_jobs(meta):
     return obj["jobs"],meta
 
 def ssh_preto(script, timeout=30):
-    cmd=["ssh","-o","BatchMode=yes","-o","ConnectTimeout=5","DELL@"+PRETO,
-         PS+" -NoProfile -NonInteractive -Command "+script]
-    p=subprocess.run(cmd,text=True,capture_output=True,timeout=timeout)
-    return {"exit":p.returncode,"stdout":p.stdout[-12000:],"stderr":p.stderr[-4000:]}
+    full="$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();"+script
+    enc=base64.b64encode(full.encode("utf-16le")).decode()
+    remote=PS+" -NoProfile -NonInteractive -EncodedCommand "+enc
+    p=subprocess.run(["ssh","-o","BatchMode=yes","-o","ConnectTimeout=5","DELL@"+PRETO,remote],
+                     capture_output=True,timeout=timeout)
+    def dec(b):
+        try: return b.decode("utf-8")
+        except Exception:
+            try: return b.decode("cp850")
+            except Exception: return b.decode("cp1252",errors="replace")
+    return {"exit":p.returncode,"stdout":dec(p.stdout)[-12000:],"stderr":dec(p.stderr)[-4000:]}
 
 def action_status_global(params):
     return {
@@ -109,6 +116,42 @@ def action_s24_health(params):
 def action_preto_status(params):
     s=r"""$os=Get-CimInstance Win32_OperatingSystem;$cs=Get-CimInstance Win32_ComputerSystem;$d=Get-PSDrive C;[pscustomobject]@{host=$env:COMPUTERNAME;user=$env:USERNAME;uptime_s=[int]((Get-Date)-$os.LastBootUpTime).TotalSeconds;ram_total_gb=[math]::Round($cs.TotalPhysicalMemory/1GB,1);ram_free_gb=[math]::Round($os.FreePhysicalMemory*1KB/1GB,1);c_free_gb=[math]::Round($d.Free/1GB,1);sshd=(Get-Service sshd -ErrorAction SilentlyContinue).Status.ToString();tailscale=(Get-Service Tailscale -ErrorAction SilentlyContinue).Status.ToString()}|ConvertTo-Json -Compress"""
     return ssh_preto(s)
+
+def action_preto_admin_status(params):
+    s=r"""$isAdmin=([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);[pscustomobject]@{host=$env:COMPUTERNAME;user=$env:USERNAME;is_admin=$isAdmin;identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name}|ConvertTo-Json -Compress"""
+    return ssh_preto(s)
+
+def action_preto_baseline_status(params):
+    s=r"""$p='C:\ProgramData\Kero';$task=Get-ScheduledTask -TaskName 'KeroWatchdog' -ErrorAction SilentlyContinue;[pscustomobject]@{root=(Test-Path $p);watchdog_file=(Test-Path ($p+'\scripts\watchdog.ps1'));watchdog_task=($null-ne$task);sshd=(Get-Service sshd -ErrorAction SilentlyContinue).Status.ToString();sshd_start=(Get-Service sshd -ErrorAction SilentlyContinue).StartType.ToString();tailscale=(Get-Service Tailscale -ErrorAction SilentlyContinue).Status.ToString();tailscale_start=(Get-Service Tailscale -ErrorAction SilentlyContinue).StartType.ToString()}|ConvertTo-Json -Compress"""
+    return ssh_preto(s)
+
+def action_preto_baseline_install(params):
+    script=r"""$ErrorActionPreference='Stop'
+$root='C:\ProgramData\Kero'
+@('agent','state','logs','locks','backup','scripts')|ForEach-Object{New-Item -ItemType Directory -Force -Path (Join-Path $root $_)|Out-Null}
+$watch=@'
+$ErrorActionPreference='SilentlyContinue'
+$log='C:\ProgramData\Kero\logs\watchdog.log'
+foreach($n in @('sshd','Tailscale')){
+  $s=Get-Service -Name $n -ErrorAction SilentlyContinue
+  if($s){
+    if($s.StartType -ne 'Automatic'){Set-Service -Name $n -StartupType Automatic}
+    if($s.Status -ne 'Running'){Start-Service -Name $n}
+  }
+}
+Add-Content -Path $log -Value ((Get-Date).ToString('o')+' ok')
+'@
+Set-Content -Path (Join-Path $root 'scripts\watchdog.ps1') -Value $watch -Encoding UTF8
+Set-Service sshd -StartupType Automatic
+Set-Service Tailscale -StartupType Automatic
+$act=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -NonInteractive -File "C:\ProgramData\Kero\scripts\watchdog.ps1"'
+$tr1=New-ScheduledTaskTrigger -AtStartup
+$tr2=New-ScheduledTaskTrigger -Once -At (Get-Date).Date.AddMinutes(1)
+$tr2.Repetition.Interval='PT5M';$tr2.Repetition.Duration='P1D'
+Register-ScheduledTask -TaskName 'KeroWatchdog' -Action $act -Trigger @($tr1,$tr2) -User 'SYSTEM' -RunLevel Highest -Force|Out-Null
+Start-ScheduledTask -TaskName 'KeroWatchdog'
+[pscustomobject]@{installed=$true;task='KeroWatchdog';root=$root}|ConvertTo-Json -Compress"""
+    return ssh_preto(script,timeout=45)
 
 def action_preto_disk(params):
     s=r"""Get-PSDrive -PSProvider FileSystem|Select Name,@{n='UsedGB';e={[math]::Round($_.Used/1GB,1)}},@{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}}|ConvertTo-Json -Compress"""
@@ -134,6 +177,9 @@ ACTIONS = {
   "status.global": (1, action_status_global),
   "s24.health": (1, action_s24_health),
   "preto.status": (1, action_preto_status),
+  "preto.admin.status": (1, action_preto_admin_status),
+  "preto.baseline.status": (1, action_preto_baseline_status),
+  "preto.baseline.install": (2, action_preto_baseline_install),
   "preto.disk": (1, action_preto_disk),
   "preto.process.top": (1, action_preto_process_top),
   "preto.service.status": (1, action_preto_service_status),

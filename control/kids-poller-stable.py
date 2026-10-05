@@ -14,7 +14,7 @@ RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 SUPABASE_URL = "https://noqdjfuqaqlicugbqihv.supabase.co"
 SUPABASE_KEY = "sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.stable.2"
+CONTROL_VERSION = "2026.10.05.stable.3"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -195,6 +195,23 @@ def action_kids_mobile_worker_status(params):
         obj=json.loads(r.read() or b"{}")
     return {"target":target,"heartbeat":obj.get("heartbeat") or {},"queue":obj.get("queue"),"ok":True}
 
+def action_kids_bootstrap_inventory(params):
+    root=pathlib.Path.home()/"kero-mobile"/"bootstrap"
+    if not root.exists():
+        return {"exists":False,"files":[]}
+    files=[]
+    for p in sorted(root.rglob("*")):
+        if not p.is_file():
+            continue
+        if len(files)>=100:
+            break
+        rel=str(p.relative_to(root))
+        item={"path":rel,"size":p.stat().st_size}
+        if p.suffix.lower() in {".sh",".py",".txt",".json"} and p.stat().st_size<=30000:
+            item["content"]=p.read_text(encoding="utf-8",errors="replace")
+        files.append(item)
+    return {"exists":True,"files":files}
+
 def action_kids_read_control_source(params):
     name=str(params.get("name",""))
     allowed={
@@ -202,6 +219,11 @@ def action_kids_read_control_source(params):
       "s24-task.py": pathlib.Path("/home/victor/kero-mobile/s24-task.py"),
       "remote-status.py": pathlib.Path("/home/victor/kero-mobile/remote-status.py"),
       "background-watch.sh": pathlib.Path("/home/victor/kero-mobile/background-watch.sh"),
+      "probe-cinza-mobile-worker.py": pathlib.Path("/home/victor/kero-mobile/probe-cinza-mobile-worker.py"),
+      "probe-cinza-options.py": pathlib.Path("/home/victor/kero-mobile/probe-cinza-options.py"),
+      "kero-api.py": pathlib.Path("/home/victor/kero-mobile/kero-api.py"),
+      "worker.json": pathlib.Path("/home/victor/kero-mobile/worker.json"),
+      "test-preto-rescue.py": pathlib.Path("/home/victor/kero-mobile/test-preto-rescue.py"),
     }
     p=allowed.get(name)
     if not p:
@@ -475,6 +497,7 @@ ACTIONS = {
   "s24.agent.start_sshd": (2, action_s24_agent_start_sshd),
   "s24.agent.open_billing": (2, action_s24_agent_open_billing),
   "kids.read_control_source": (1, action_kids_read_control_source),
+  "kids.bootstrap.inventory": (1, action_kids_bootstrap_inventory),
   "kids.mobile_worker.status": (1, action_kids_mobile_worker_status),
   "s24.open_url": (1, action_s24_open_url),
   "s24.ssh.rescue.status": (1, action_s24_ssh_rescue_status),

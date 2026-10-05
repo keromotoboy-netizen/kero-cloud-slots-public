@@ -8,6 +8,14 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T04:15:00Z"
+    },
+    {
+      "id": "kero-20261005-0227-preto-agent-policy",
+      "target": "kids",
+      "action": "preto.agent.policy",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T04:15:00Z"
     }
   ]
 }

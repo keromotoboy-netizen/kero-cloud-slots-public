@@ -194,6 +194,22 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T18:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1440-kids-version",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T16:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1440-preto-agent-debug",
+      "target": "kids",
+      "action": "preto.agent.debug",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T16:00:00Z"
     }
   ]
 }

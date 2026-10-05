@@ -16,6 +16,14 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T04:15:00Z"
+    },
+    {
+      "id": "kero-20261005-s24-health-capability-check",
+      "target": "kids",
+      "action": "s24.health",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T15:00:00Z"
     }
   ]
 }

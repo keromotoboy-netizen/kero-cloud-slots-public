@@ -398,6 +398,36 @@
       },
       "risk": 1,
       "expires_at": "2026-10-05T19:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1520-read-s24-task",
+      "target": "kids",
+      "action": "kids.read_control_source",
+      "params": {
+        "name": "s24-task.py"
+      },
+      "risk": 1,
+      "expires_at": "2026-10-05T21:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1520-read-background-watch",
+      "target": "kids",
+      "action": "kids.read_control_source",
+      "params": {
+        "name": "background-watch.sh"
+      },
+      "risk": 1,
+      "expires_at": "2026-10-05T21:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1520-read-remote-status",
+      "target": "kids",
+      "action": "kids.read_control_source",
+      "params": {
+        "name": "remote-status.py"
+      },
+      "risk": 1,
+      "expires_at": "2026-10-05T21:00:00Z"
     }
   ]
 }

@@ -1,1 +1,21 @@
-{"version":1,"jobs":[]}
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "kero-20261005-0158-status-global",
+      "target": "kids",
+      "action": "status.global",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T02:30:00Z"
+    },
+    {
+      "id": "kero-20261005-0158-preto-status",
+      "target": "kids",
+      "action": "preto.status",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T02:30:00Z"
+    }
+  ]
+}

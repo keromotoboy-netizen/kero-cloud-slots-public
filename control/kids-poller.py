@@ -99,7 +99,10 @@ def ssh_preto(script, timeout=30):
         except Exception:
             try: return b.decode("cp850")
             except Exception: return b.decode("cp1252",errors="replace")
-    return {"exit":p.returncode,"stdout":dec(p.stdout)[-12000:],"stderr":dec(p.stderr)[-4000:]}
+    out={"exit":p.returncode,"stdout":dec(p.stdout)[-12000:],"stderr":dec(p.stderr)[-4000:]}
+    if p.returncode != 0:
+        raise RuntimeError("remote_exit_"+str(p.returncode)+": "+out["stderr"][-1200:])
+    return out
 
 def action_status_global(params):
     return {
@@ -144,12 +147,9 @@ Add-Content -Path $log -Value ((Get-Date).ToString('o')+' ok')
 Set-Content -Path (Join-Path $root 'scripts\watchdog.ps1') -Value $watch -Encoding UTF8
 Set-Service sshd -StartupType Automatic
 Set-Service Tailscale -StartupType Automatic
-$act=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -NonInteractive -File "C:\ProgramData\Kero\scripts\watchdog.ps1"'
-$tr1=New-ScheduledTaskTrigger -AtStartup
-$tr2=New-ScheduledTaskTrigger -Once -At (Get-Date).Date.AddMinutes(1)
-$tr2.Repetition.Interval='PT5M';$tr2.Repetition.Duration='P1D'
-Register-ScheduledTask -TaskName 'KeroWatchdog' -Action $act -Trigger @($tr1,$tr2) -User 'SYSTEM' -RunLevel Highest -Force|Out-Null
-Start-ScheduledTask -TaskName 'KeroWatchdog'
+$taskCmd='powershell.exe -NoProfile -NonInteractive -File "C:\ProgramData\Kero\scripts\watchdog.ps1"'
+& schtasks.exe /Create /TN 'KeroWatchdog' /SC MINUTE /MO 5 /TR $taskCmd /RU SYSTEM /RL HIGHEST /F | Out-Null
+& schtasks.exe /Run /TN 'KeroWatchdog' | Out-Null
 [pscustomobject]@{installed=$true;task='KeroWatchdog';root=$root}|ConvertTo-Json -Compress"""
     return ssh_preto(script,timeout=45)
 

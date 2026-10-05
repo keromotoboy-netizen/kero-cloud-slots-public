@@ -2,25 +2,25 @@
   "version": 1,
   "jobs": [
     {
-      "id": "kero-20261005-0202-preto-status-v2",
+      "id": "kero-20261005-0205-preto-baseline-install",
       "target": "kids",
-      "action": "preto.status",
+      "action": "preto.baseline.install",
+      "params": {},
+      "risk": 2,
+      "expires_at": "2026-10-05T03:00:00Z"
+    },
+    {
+      "id": "kero-20261005-0205-preto-disk",
+      "target": "kids",
+      "action": "preto.disk",
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T03:00:00Z"
     },
     {
-      "id": "kero-20261005-0202-preto-admin",
+      "id": "kero-20261005-0205-preto-process-top",
       "target": "kids",
-      "action": "preto.admin.status",
-      "params": {},
-      "risk": 1,
-      "expires_at": "2026-10-05T03:00:00Z"
-    },
-    {
-      "id": "kero-20261005-0202-preto-baseline-status",
-      "target": "kids",
-      "action": "preto.baseline.status",
+      "action": "preto.process.top",
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T03:00:00Z"

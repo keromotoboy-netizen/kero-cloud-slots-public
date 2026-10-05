@@ -12,7 +12,7 @@ JOBS_DIR_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs?ref=m
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.8"
+CONTROL_VERSION = "2026.10.05.9"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -237,6 +237,273 @@ Start-Sleep -Seconds 1
 Start-Sleep -Seconds 2
 [pscustomobject]@{attempted=$true;serial=$serial}|ConvertTo-Json -Compress"""
     return ssh_preto(s,timeout=35)
+
+def action_preto_cinza_smb_status(params):
+    s=r"""$hostip='100.121.228.117'
+$public=Test-Path ('\\\\'+$hostip+'\\Users\\Public')
+$admin=Test-Path ('\\\\'+$hostip+'\\C
+    s=r"""$os=Get-CimInstance Win32_OperatingSystem;$cs=Get-CimInstance Win32_ComputerSystem;$d=Get-PSDrive C;[pscustomobject]@{host=$env:COMPUTERNAME;user=$env:USERNAME;uptime_s=[int]((Get-Date)-$os.LastBootUpTime).TotalSeconds;ram_total_gb=[math]::Round($cs.TotalPhysicalMemory/1GB,1);ram_free_gb=[math]::Round($os.FreePhysicalMemory*1KB/1GB,1);c_free_gb=[math]::Round($d.Free/1GB,1);sshd=(Get-Service sshd -ErrorAction SilentlyContinue).Status.ToString();tailscale=(Get-Service Tailscale -ErrorAction SilentlyContinue).Status.ToString()}|ConvertTo-Json -Compress"""
+    return ssh_preto(s)
+
+def action_preto_admin_status(params):
+    s=r"""$isAdmin=([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);[pscustomobject]@{host=$env:COMPUTERNAME;user=$env:USERNAME;is_admin=$isAdmin;identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name}|ConvertTo-Json -Compress"""
+    return ssh_preto(s)
+
+def action_preto_baseline_status(params):
+    s=r"""$p='C:\ProgramData\Kero';$task=Get-ScheduledTask -TaskName 'KeroWatchdog' -ErrorAction SilentlyContinue;[pscustomobject]@{root=(Test-Path $p);watchdog_file=(Test-Path ($p+'\scripts\watchdog.ps1'));watchdog_task=($null-ne$task);sshd=(Get-Service sshd -ErrorAction SilentlyContinue).Status.ToString();sshd_start=(Get-Service sshd -ErrorAction SilentlyContinue).StartType.ToString();tailscale=(Get-Service Tailscale -ErrorAction SilentlyContinue).Status.ToString();tailscale_start=(Get-Service Tailscale -ErrorAction SilentlyContinue).StartType.ToString()}|ConvertTo-Json -Compress"""
+    return ssh_preto(s)
+
+def action_preto_baseline_install(params):
+    script=r"""$ErrorActionPreference='Stop'
+$root='C:\ProgramData\Kero'
+@('agent','state','logs','locks','backup','scripts')|ForEach-Object{New-Item -ItemType Directory -Force -Path (Join-Path $root $_)|Out-Null}
+$watch=@'
+$ErrorActionPreference='SilentlyContinue'
+$log='C:\ProgramData\Kero\logs\watchdog.log'
+foreach($n in @('sshd','Tailscale')){
+  $s=Get-Service -Name $n -ErrorAction SilentlyContinue
+  if($s){
+    if($s.StartType -ne 'Automatic'){Set-Service -Name $n -StartupType Automatic}
+    if($s.Status -ne 'Running'){Start-Service -Name $n}
+  }
+}
+$agentTask=Get-ScheduledTask -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue
+if($agentTask -and $agentTask.State -ne 'Running'){
+  Start-ScheduledTask -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue
+}
+Add-Content -Path $log -Value ((Get-Date).ToString('o')+' ok')
+'@
+Set-Content -Path (Join-Path $root 'scripts\watchdog.ps1') -Value $watch -Encoding UTF8
+Set-Service sshd -StartupType Automatic
+Set-Service Tailscale -StartupType Automatic
+$taskCmd='powershell.exe -NoProfile -NonInteractive -File "C:\ProgramData\Kero\scripts\watchdog.ps1"'
+& schtasks.exe /Create /TN 'KeroWatchdog' /SC MINUTE /MO 5 /TR $taskCmd /RU SYSTEM /RL HIGHEST /F | Out-Null
+& schtasks.exe /Run /TN 'KeroWatchdog' | Out-Null
+[pscustomobject]@{installed=$true;task='KeroWatchdog';root=$root}|ConvertTo-Json -Compress"""
+    return ssh_preto(script,timeout=45)
+
+def action_preto_agent_status(params):
+    s=r"""$root='C:\ProgramData\Kero';$task=Get-ScheduledTask -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue;$proc=Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -like '*Kero\\agent\\agent.ps1*'}|Select-Object -First 1 ProcessId,CommandLine;[pscustomobject]@{agent_file=(Test-Path ($root+'\\agent\\agent.ps1'));task_exists=($null-ne$task);task_state=if($task){$task.State.ToString()}else{'Missing'};process_pid=if($proc){$proc.ProcessId}else{$null};inbox=(Test-Path ($root+'\\queue\\inbox'));outbox=(Test-Path ($root+'\\queue\\outbox'))}|ConvertTo-Json -Compress"""
+    return ssh_preto(s)
+
+def action_preto_agent_install(params):
+    s=r"""$ErrorActionPreference='Stop'
+$root='C:\ProgramData\Kero'
+$agentDir=Join-Path $root 'agent'
+@($agentDir,(Join-Path $root 'queue\inbox'),(Join-Path $root 'queue\processing'),(Join-Path $root 'queue\outbox'),(Join-Path $root 'queue\done'),(Join-Path $root 'queue\failed'),(Join-Path $root 'logs'))|ForEach-Object{New-Item -ItemType Directory -Force -Path $_|Out-Null}
+$url='https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/control/windows/kero-agent.ps1'
+$tmp=Join-Path $agentDir 'agent.ps1.tmp'
+$dst=Join-Path $agentDir 'agent.ps1'
+Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $tmp
+$got=(Get-FileHash -Algorithm SHA256 -Path $tmp).Hash.ToLower()
+$want='872de5946b6bc6e6acfa30baf8c36d85f1606c85a14675964617ca64548c9e17'
+if($got -ne $want){Remove-Item -Force $tmp;throw 'agent_hash_mismatch'}
+Move-Item -Force $tmp $dst
+$act=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -NonInteractive -File "C:\ProgramData\Kero\agent\agent.ps1"'
+$tr=New-ScheduledTaskTrigger -AtStartup
+$settings=New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 3650) -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName 'KeroDeviceAgent' -Action $act -Trigger $tr -Settings $settings -User 'SYSTEM' -RunLevel Highest -Force|Out-Null
+Start-ScheduledTask -TaskName 'KeroDeviceAgent'
+Start-Sleep -Seconds 3
+$task=Get-ScheduledTask -TaskName 'KeroDeviceAgent' -ErrorAction Stop
+$info=Get-ScheduledTaskInfo -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue
+[pscustomobject]@{installed=$true;sha256=$got;task_state=$task.State.ToString();last_result=if($info){$info.LastTaskResult}else{$null}}|ConvertTo-Json -Compress"""
+    return ssh_preto(s,timeout=45)
+
+def action_preto_agent_policy(params):
+    s=r"""$path='C:\ProgramData\Kero\agent\agent.ps1';[pscustomobject]@{policies=@(Get-ExecutionPolicy -List|ForEach-Object{[pscustomobject]@{scope=$_.Scope.ToString();policy=$_.ExecutionPolicy.ToString()}});zone_identifier=(Test-Path ($path+':Zone.Identifier'));file_exists=(Test-Path $path)}|ConvertTo-Json -Compress -Depth 6"""
+    return ssh_preto(s)
+
+def action_preto_agent_syntax(params):
+    s=r"""$path='C:\ProgramData\Kero\agent\agent.ps1';$tokens=$null;$errors=$null;[System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)|Out-Null;[pscustomobject]@{exists=(Test-Path $path);error_count=@($errors).Count;errors=@($errors|ForEach-Object{[pscustomobject]@{message=$_.Message;line=$_.Extent.StartLineNumber;column=$_.Extent.StartColumnNumber;text=$_.Extent.Text}})}|ConvertTo-Json -Compress -Depth 6"""
+    return ssh_preto(s)
+
+def action_preto_agent_diagnostics(params):
+    s=r"""$root='C:\ProgramData\Kero';$task=Get-ScheduledTask -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue;$info=Get-ScheduledTaskInfo -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue;$act=if($task){$task.Actions|Select-Object Execute,Arguments}else{$null};$log=if(Test-Path ($root+'\logs\agent.log')){@(Get-Content ($root+'\logs\agent.log') -Tail 20)}else{@()};$proc=Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -like '*Kero\\agent\\agent.ps1*'}|Select-Object -First 1 ProcessId,CommandLine;[pscustomobject]@{task_state=if($task){$task.State.ToString()}else{'Missing'};last_run=if($info){$info.LastRunTime}else{$null};last_result=if($info){$info.LastTaskResult}else{$null};action=$act;process=$proc;log=$log}|ConvertTo-Json -Compress -Depth 6"""
+    return ssh_preto(s)
+
+def action_preto_agent_selftest(params):
+    jid="agent-selftest-"+str(int(time.time()))+"-"+os.urandom(3).hex()
+    s=f"""$ErrorActionPreference='Stop';$root='C:\\ProgramData\\Kero';$id='{jid}';$job=[ordered]@{{id=$id;action='status';risk=1;params=@{{}};expires_at=(Get-Date).ToUniversalTime().AddMinutes(2).ToString('o')}}|ConvertTo-Json -Compress;$in=Join-Path $root ('queue\\inbox\\'+$id+'.json');$out=Join-Path $root ('queue\\outbox\\'+$id+'.json');Set-Content -Encoding UTF8 -Path $in -Value $job;$limit=(Get-Date).AddSeconds(20);while((Get-Date)-lt$limit){{if(Test-Path $out){{Get-Content -Raw $out;exit 0}};Start-Sleep -Milliseconds 500}};throw 'agent_selftest_timeout'"""
+    return ssh_preto(s,timeout=30)
+
+def action_preto_disk(params):
+    s=r"""Get-PSDrive -PSProvider FileSystem|Select Name,@{n='UsedGB';e={[math]::Round($_.Used/1GB,1)}},@{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}}|ConvertTo-Json -Compress"""
+    return ssh_preto(s)
+
+def action_preto_process_top(params):
+    s=r"""Get-Process|Sort-Object WorkingSet64 -Descending|Select-Object -First 15 Name,Id,@{n='RAM_MB';e={[math]::Round($_.WorkingSet64/1MB,1)}},CPU|ConvertTo-Json -Compress"""
+    return ssh_preto(s)
+
+def action_preto_service_status(params):
+    name=str(params.get("service",""))
+    if name not in SERVICE_ALLOW: raise ValueError("service_not_allowlisted")
+    s=f"Get-Service -Name '{name}' -ErrorAction Stop|Select Name,Status,StartType|ConvertTo-Json -Compress"
+    return ssh_preto(s)
+
+def action_preto_service_restart(params):
+    name=str(params.get("service",""))
+    if name not in SERVICE_ALLOW: raise ValueError("service_not_allowlisted")
+    s=f"Restart-Service -Name '{name}' -ErrorAction Stop; Get-Service -Name '{name}'|Select Name,Status,StartType|ConvertTo-Json -Compress"
+    return ssh_preto(s)
+
+
+def action_preto_agent_debug(params):
+    s=r"""$ErrorActionPreference='SilentlyContinue'
+$root='C:\ProgramData\Kero'
+$agent=Join-Path $root 'agent\agent.ps1'
+$stdout=Join-Path $root 'logs\agent-debug.stdout.log'
+$stderr=Join-Path $root 'logs\agent-debug.stderr.log'
+Remove-Item $stdout,$stderr -Force -ErrorAction SilentlyContinue
+$p=Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$agent) -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru -WindowStyle Hidden
+Start-Sleep -Seconds 4
+$running=-not $p.HasExited
+$code=if($p.HasExited){$p.ExitCode}else{$null}
+if($running){Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}
+[pscustomobject]@{
+  running_after_4s=$running
+  exit_code=$code
+  stdout=if(Test-Path $stdout){(Get-Content -Raw $stdout)}else{''}
+  stderr=if(Test-Path $stderr){(Get-Content -Raw $stderr)}else{''}
+  agent_log=if(Test-Path (Join-Path $root 'logs\agent.log')){@(Get-Content (Join-Path $root 'logs\agent.log') -Tail 10)}else{@()}
+}|ConvertTo-Json -Compress -Depth 5"""
+    return ssh_preto(s,timeout=20)
+
+def action_preto_agent_repair(params):
+    s=r"""$ErrorActionPreference='Stop'
+$root='C:\ProgramData\Kero'
+$agent='C:\ProgramData\Kero\agent\agent.ps1'
+$wrap='C:\ProgramData\Kero\agent\launch.ps1'
+$wrapper=@'
+$ErrorActionPreference='Stop'
+$log='C:\ProgramData\Kero\logs\agent-launch.log'
+try {
+  Add-Content -Path $log -Value ((Get-Date).ToString('o')+' launch')
+  & 'C:\ProgramData\Kero\agent\agent.ps1'
+} catch {
+  Add-Content -Path $log -Value ((Get-Date).ToString('o')+' fatal '+$_.Exception.ToString())
+  exit 1
+}
+'@
+Set-Content -Path $wrap -Value $wrapper -Encoding UTF8
+$act=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\ProgramData\Kero\agent\launch.ps1"'
+$tr=New-ScheduledTaskTrigger -AtStartup
+$settings=New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName 'KeroDeviceAgent' -Action $act -Trigger $tr -Settings $settings -User 'SYSTEM' -RunLevel Highest -Force|Out-Null
+Start-ScheduledTask -TaskName 'KeroDeviceAgent'
+Start-Sleep -Seconds 5
+$task=Get-ScheduledTask -TaskName 'KeroDeviceAgent'
+$info=Get-ScheduledTaskInfo -TaskName 'KeroDeviceAgent'
+$proc=Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -like '*Kero\agent\launch.ps1*' -or $_.CommandLine -like '*Kero\agent\agent.ps1*'}|Select-Object -First 1 ProcessId,CommandLine
+[pscustomobject]@{
+ task_state=$task.State.ToString()
+ last_result=$info.LastTaskResult
+ process=$proc
+ launch_log=if(Test-Path 'C:\ProgramData\Kero\logs\agent-launch.log'){@(Get-Content 'C:\ProgramData\Kero\logs\agent-launch.log' -Tail 10)}else{@()}
+ agent_log=if(Test-Path 'C:\ProgramData\Kero\logs\agent.log'){@(Get-Content 'C:\ProgramData\Kero\logs\agent.log' -Tail 10)}else{@()}
+}|ConvertTo-Json -Compress -Depth 6"""
+    return ssh_preto(s,timeout=30)
+
+ACTIONS = {
+  "kids.version": (1, action_kids_version),
+  "status.global": (1, action_status_global),
+  "s24.health": (1, action_s24_health),
+  "kids.read_control_source": (1, action_kids_read_control_source),
+  "s24.open_url": (1, action_s24_open_url),
+  "s24.ssh.rescue.status": (1, action_s24_ssh_rescue_status),
+  "s24.ssh.rescue": (2, action_s24_ssh_rescue),
+  "cinza.connectivity": (1, action_cinza_connectivity),
+  "preto.status": (1, action_preto_status),
+  "preto.cinza.smb.status": (1, action_preto_cinza_smb_status),
+  "preto.s24.adb.status": (1, action_preto_s24_adb_status),
+  "preto.s24.ssh.rescue": (2, action_preto_s24_ssh_rescue),
+  "preto.admin.status": (1, action_preto_admin_status),
+  "preto.baseline.status": (1, action_preto_baseline_status),
+  "preto.baseline.install": (2, action_preto_baseline_install),
+  "preto.agent.status": (1, action_preto_agent_status),
+  "preto.agent.policy": (1, action_preto_agent_policy),
+  "preto.agent.repair": (2, action_preto_agent_repair),
+  "preto.agent.syntax": (1, action_preto_agent_syntax),
+  "preto.agent.install": (2, action_preto_agent_install),
+  "preto.agent.diagnostics": (1, action_preto_agent_diagnostics),
+  "preto.agent.debug": (1, action_preto_agent_debug),
+  "preto.agent.repair": (2, action_preto_agent_repair),
+  "preto.agent.selftest": (1, action_preto_agent_selftest),
+  "preto.disk": (1, action_preto_disk),
+  "preto.process.top": (1, action_preto_process_top),
+  "preto.service.status": (1, action_preto_service_status),
+  "preto.service.restart": (2, action_preto_service_restart),
+}
+
+def canonical(obj):
+    return json.dumps(obj,ensure_ascii=False,sort_keys=True,separators=(",",":")).encode()
+
+def sign(body):
+    with tempfile.TemporaryDirectory() as td:
+        p=pathlib.Path(td); inp=p/"body"; sig=p/"sig"
+        inp.write_bytes(body)
+        subprocess.run(["openssl","pkeyutl","-sign","-rawin","-inkey",str(KEY),"-in",str(inp),"-out",str(sig)],
+                       check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=10)
+        return base64.b64encode(sig.read_bytes()).decode()
+
+def post_result(obj):
+    body=canonical(obj)
+    req=urllib.request.Request(RESULT_URL,data=body,method="POST",
+      headers={"Content-Type":"application/json","X-Kero-Device":DEVICE,"X-Kero-Signature":sign(body)})
+    with urllib.request.urlopen(req,timeout=12) as r:
+        return r.status
+
+def parse_expiry(s):
+    return datetime.fromisoformat(str(s).replace("Z","+00:00"))
+
+def main():
+    meta=load_json(META,{})
+    try: meta=maybe_self_update(meta)
+    except Exception as e: log("self_update_error",error=type(e).__name__+":"+str(e)[:250])
+    seen=load_json(STATE,{})
+    cutoff=time.time()-7*86400
+    seen={k:v for k,v in seen.items() if float(v)>cutoff}
+    try:
+        jobs,meta=fetch_jobs(meta,seen)
+    except Exception as e:
+        log("fetch_error",error=type(e).__name__+":"+str(e)[:250]); return 1
+    if jobs is None: return 0
+    for job in jobs:
+        jid=str(job.get("id",""))
+        if not jid or jid in seen: continue
+        if job.get("target") not in ("kids","any"): continue
+        action=str(job.get("action","")); spec=ACTIONS.get(action)
+        if not spec: log("job_rejected",job_id=jid,reason="action_not_allowlisted"); continue
+        declared=int(job.get("risk",99)); required,fn=spec
+        if declared != required or declared >= 3:
+            log("job_rejected",job_id=jid,reason="risk_mismatch"); continue
+        try:
+            if parse_expiry(job.get("expires_at")) <= now():
+                seen[jid]=time.time(); atomic_json(STATE,seen); continue
+        except Exception:
+            log("job_rejected",job_id=jid,reason="bad_expiry"); continue
+        started=time.time()
+        try:
+            result=fn(job.get("params") or {})
+            out={"job_id":jid,"device":DEVICE,"action":action,"ok":True,"duration_ms":int((time.time()-started)*1000),
+                 "result":result,"ts":datetime.now(timezone.utc).isoformat()}
+        except Exception as e:
+            out={"job_id":jid,"device":DEVICE,"action":action,"ok":False,"duration_ms":int((time.time()-started)*1000),
+                 "error":type(e).__name__+":"+str(e)[:500],"ts":datetime.now(timezone.utc).isoformat()}
+        try:
+            code=post_result(out)
+            seen[jid]=time.time(); atomic_json(STATE,seen)
+            log("job_result_sent",job_id=jid,action=action,http=code,ok=out["ok"])
+        except Exception as e:
+            log("result_error",job_id=jid,error=type(e).__name__+":"+str(e)[:250])
+    return 0
+
+if __name__=="__main__":
+    sys.exit(main())
+)
+$sc=@(& sc.exe ('\\\\'+$hostip) query Tailscale 2>&1)
+[pscustomobject]@{public_share=$public;admin_share=$admin;service_query=@($sc)}|ConvertTo-Json -Compress -Depth 5"""
+    return ssh_preto(s,timeout=20)
 
 def action_preto_status(params):
     s=r"""$os=Get-CimInstance Win32_OperatingSystem;$cs=Get-CimInstance Win32_ComputerSystem;$d=Get-PSDrive C;[pscustomobject]@{host=$env:COMPUTERNAME;user=$env:USERNAME;uptime_s=[int]((Get-Date)-$os.LastBootUpTime).TotalSeconds;ram_total_gb=[math]::Round($cs.TotalPhysicalMemory/1GB,1);ram_free_gb=[math]::Round($os.FreePhysicalMemory*1KB/1GB,1);c_free_gb=[math]::Round($d.Free/1GB,1);sshd=(Get-Service sshd -ErrorAction SilentlyContinue).Status.ToString();tailscale=(Get-Service Tailscale -ErrorAction SilentlyContinue).Status.ToString()}|ConvertTo-Json -Compress"""

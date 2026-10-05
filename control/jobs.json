@@ -2,54 +2,52 @@
   "version": 1,
   "jobs": [
     {
-      "id": "kero-20261005-0227-preto-agent-syntax",
-      "target": "kids",
-      "action": "preto.agent.syntax",
-      "params": {},
-      "risk": 1,
-      "expires_at": "2026-10-05T04:15:00Z"
-    },
-    {
-      "id": "kero-20261005-0227-preto-agent-policy",
-      "target": "kids",
-      "action": "preto.agent.policy",
-      "params": {},
-      "risk": 1,
-      "expires_at": "2026-10-05T04:15:00Z"
-    },
-    {
-      "id": "kero-20261005-s24-health-capability-check",
-      "target": "kids",
-      "action": "s24.health",
-      "params": {},
-      "risk": 1,
-      "expires_at": "2026-10-05T15:00:00Z"
-    },
-    {
-      "id": "kero-20261005-kids-version-check",
+      "id": "kero-20261005-1430-kids-version",
       "target": "kids",
       "action": "kids.version",
       "params": {},
       "risk": 1,
-      "expires_at": "2026-10-05T15:00:00Z"
+      "expires_at": "2026-10-05T16:30:00Z"
     },
     {
-      "id": "kero-20261005-global-connectivity-check",
+      "id": "kero-20261005-1430-preto-status",
       "target": "kids",
-      "action": "status.global",
+      "action": "preto.status",
       "params": {},
       "risk": 1,
-      "expires_at": "2026-10-05T15:00:00Z"
+      "expires_at": "2026-10-05T16:30:00Z"
     },
     {
-      "id": "kero-20261005-s24-open-github-billing",
+      "id": "kero-20261005-1430-preto-baseline",
       "target": "kids",
-      "action": "s24.open_url",
-      "params": {
-        "url": "https://github.com/settings/billing"
-      },
+      "action": "preto.baseline.status",
+      "params": {},
       "risk": 1,
-      "expires_at": "2026-10-05T15:30:00Z"
+      "expires_at": "2026-10-05T16:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1430-preto-agent-diag",
+      "target": "kids",
+      "action": "preto.agent.diagnostics",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T16:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1430-preto-agent-syntax",
+      "target": "kids",
+      "action": "preto.agent.syntax",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T16:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1430-preto-agent-policy",
+      "target": "kids",
+      "action": "preto.agent.policy",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T16:30:00Z"
     }
   ]
 }

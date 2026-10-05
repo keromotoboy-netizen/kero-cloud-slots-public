@@ -189,6 +189,10 @@ $info=Get-ScheduledTaskInfo -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyCon
 [pscustomobject]@{installed=$true;sha256=$got;task_state=$task.State.ToString();last_result=if($info){$info.LastTaskResult}else{$null}}|ConvertTo-Json -Compress"""
     return ssh_preto(s,timeout=45)
 
+def action_preto_agent_policy(params):
+    s=r"""$path='C:\ProgramData\Kero\agent\agent.ps1';[pscustomobject]@{policies=@(Get-ExecutionPolicy -List|ForEach-Object{[pscustomobject]@{scope=$_.Scope.ToString();policy=$_.ExecutionPolicy.ToString()}});zone_identifier=(Test-Path ($path+':Zone.Identifier'));file_exists=(Test-Path $path)}|ConvertTo-Json -Compress -Depth 6"""
+    return ssh_preto(s)
+
 def action_preto_agent_syntax(params):
     s=r"""$path='C:\ProgramData\Kero\agent\agent.ps1';$tokens=$null;$errors=$null;[System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)|Out-Null;[pscustomobject]@{exists=(Test-Path $path);error_count=@($errors).Count;errors=@($errors|ForEach-Object{[pscustomobject]@{message=$_.Message;line=$_.Extent.StartLineNumber;column=$_.Extent.StartColumnNumber;text=$_.Extent.Text}})}|ConvertTo-Json -Compress -Depth 6"""
     return ssh_preto(s)
@@ -231,6 +235,7 @@ ACTIONS = {
   "preto.baseline.status": (1, action_preto_baseline_status),
   "preto.baseline.install": (2, action_preto_baseline_install),
   "preto.agent.status": (1, action_preto_agent_status),
+  "preto.agent.policy": (1, action_preto_agent_policy),
   "preto.agent.syntax": (1, action_preto_agent_syntax),
   "preto.agent.install": (2, action_preto_agent_install),
   "preto.agent.diagnostics": (1, action_preto_agent_diagnostics),

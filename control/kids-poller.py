@@ -17,7 +17,7 @@ PHONE = "100.87.82.13"
 PS = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 SERVICE_ALLOW = {"sshd","Tailscale","KeroDeviceAgent","KeroWatchdog"}
 MIN_FETCH_SECONDS = 90
-SELF_UPDATE_SECONDS = 1800
+SELF_UPDATE_SECONDS = 120
 
 BASE.mkdir(parents=True, exist_ok=True)
 
@@ -153,6 +153,36 @@ $taskCmd='powershell.exe -NoProfile -NonInteractive -File "C:\ProgramData\Kero\s
 [pscustomobject]@{installed=$true;task='KeroWatchdog';root=$root}|ConvertTo-Json -Compress"""
     return ssh_preto(script,timeout=45)
 
+def action_preto_agent_status(params):
+    s=r"""$root='C:\ProgramData\Kero';$task=Get-ScheduledTask -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue;$proc=Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -like '*Kero\\agent\\agent.ps1*'}|Select-Object -First 1 ProcessId,CommandLine;[pscustomobject]@{agent_file=(Test-Path ($root+'\\agent\\agent.ps1'));task_exists=($null-ne$task);task_state=if($task){$task.State.ToString()}else{'Missing'};process_pid=if($proc){$proc.ProcessId}else{$null};inbox=(Test-Path ($root+'\\queue\\inbox'));outbox=(Test-Path ($root+'\\queue\\outbox'))}|ConvertTo-Json -Compress"""
+    return ssh_preto(s)
+
+def action_preto_agent_install(params):
+    s=r"""$ErrorActionPreference='Stop'
+$root='C:\ProgramData\Kero'
+$agentDir=Join-Path $root 'agent'
+@($agentDir,(Join-Path $root 'queue\inbox'),(Join-Path $root 'queue\processing'),(Join-Path $root 'queue\outbox'),(Join-Path $root 'queue\done'),(Join-Path $root 'queue\failed'),(Join-Path $root 'logs'))|ForEach-Object{New-Item -ItemType Directory -Force -Path $_|Out-Null}
+$url='https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/control/windows/kero-agent.ps1'
+$tmp=Join-Path $agentDir 'agent.ps1.tmp'
+$dst=Join-Path $agentDir 'agent.ps1'
+Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $tmp
+$got=(Get-FileHash -Algorithm SHA256 -Path $tmp).Hash.ToLower()
+$want='e01ed865d5fe01a28cc00a5ec74ad07233709d629f2939f62d37f06bbecb9efe'
+if($got -ne $want){Remove-Item -Force $tmp;throw 'agent_hash_mismatch'}
+Move-Item -Force $tmp $dst
+$cmd='powershell.exe -NoProfile -NonInteractive -File "C:\ProgramData\Kero\agent\agent.ps1"'
+& schtasks.exe /Create /TN 'KeroDeviceAgent' /SC ONSTART /TR $cmd /RU SYSTEM /RL HIGHEST /F | Out-Null
+& schtasks.exe /Run /TN 'KeroDeviceAgent' | Out-Null
+Start-Sleep -Seconds 2
+$task=Get-ScheduledTask -TaskName 'KeroDeviceAgent' -ErrorAction Stop
+[pscustomobject]@{installed=$true;sha256=$got;task_state=$task.State.ToString()}|ConvertTo-Json -Compress"""
+    return ssh_preto(s,timeout=45)
+
+def action_preto_agent_selftest(params):
+    jid="agent-selftest-"+str(int(time.time()))+"-"+os.urandom(3).hex()
+    s=f"""$ErrorActionPreference='Stop';$root='C:\\ProgramData\\Kero';$id='{jid}';$job=[ordered]@{{id=$id;action='status';risk=1;params=@{{}};expires_at=(Get-Date).ToUniversalTime().AddMinutes(2).ToString('o')}}|ConvertTo-Json -Compress;$in=Join-Path $root ('queue\\inbox\\'+$id+'.json');$out=Join-Path $root ('queue\\outbox\\'+$id+'.json');Set-Content -Encoding UTF8 -Path $in -Value $job;$limit=(Get-Date).AddSeconds(20);while((Get-Date)-lt$limit){{if(Test-Path $out){{Get-Content -Raw $out;exit 0}};Start-Sleep -Milliseconds 500}};throw 'agent_selftest_timeout'"""
+    return ssh_preto(s,timeout=30)
+
 def action_preto_disk(params):
     s=r"""Get-PSDrive -PSProvider FileSystem|Select Name,@{n='UsedGB';e={[math]::Round($_.Used/1GB,1)}},@{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}}|ConvertTo-Json -Compress"""
     return ssh_preto(s)
@@ -180,6 +210,9 @@ ACTIONS = {
   "preto.admin.status": (1, action_preto_admin_status),
   "preto.baseline.status": (1, action_preto_baseline_status),
   "preto.baseline.install": (2, action_preto_baseline_install),
+  "preto.agent.status": (1, action_preto_agent_status),
+  "preto.agent.install": (2, action_preto_agent_install),
+  "preto.agent.selftest": (1, action_preto_agent_selftest),
   "preto.disk": (1, action_preto_disk),
   "preto.process.top": (1, action_preto_process_top),
   "preto.service.status": (1, action_preto_service_status),

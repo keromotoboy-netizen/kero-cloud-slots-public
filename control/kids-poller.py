@@ -8,6 +8,7 @@ META = BASE/"poll-meta.json"
 KEY = BASE/"result-ed25519.pem"
 REPO = "keromotoboy-netizen/kero-cloud-slots-public"
 JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=main"
+JOBS_DIR_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs?ref=main"
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
@@ -18,7 +19,7 @@ PHONE = "100.87.82.13"
 PS = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 SERVICE_ALLOW = {"sshd","Tailscale","KeroDeviceAgent","KeroWatchdog"}
 MIN_FETCH_SECONDS = 30
-SELF_UPDATE_SECONDS = 120
+SELF_UPDATE_SECONDS = 600
 
 BASE.mkdir(parents=True, exist_ok=True)
 
@@ -41,14 +42,17 @@ def atomic_json(path,obj):
     tmp.write_text(json.dumps(obj,separators=(",",":")))
     os.replace(tmp,path)
 
-def github_content(url):
+def github_json(url):
     req=urllib.request.Request(url,headers={
-      "User-Agent":"kero-kids-control/2",
+      "User-Agent":"kero-kids-control/3",
       "Accept":"application/vnd.github+json",
       "Cache-Control":"no-cache"
     })
     with urllib.request.urlopen(req,timeout=12) as r:
-        obj=json.loads(r.read())
+        return json.loads(r.read())
+
+def github_content(url):
+    obj=github_json(url)
     raw=base64.b64decode(obj["content"])
     return raw, obj.get("sha","")
 
@@ -78,18 +82,44 @@ def tcp(host,port,timeout=2):
     except Exception:
         return False
 
-def fetch_jobs(meta):
+def fetch_jobs(meta, seen):
     t=time.time()
     if t-float(meta.get("jobs_checked",0)) < MIN_FETCH_SECONDS:
         return None,meta
-    raw,sha=github_content(JOBS_API)
-    obj=json.loads(raw)
-    if obj.get("version") != 1 or not isinstance(obj.get("jobs"),list):
-        raise ValueError("invalid_manifest")
+    jobs=[]
+    try:
+        listing=github_json(JOBS_DIR_API)
+        if isinstance(listing,list):
+            files=[x for x in listing if x.get("type")=="file" and str(x.get("name","")).endswith(".json")]
+            files=sorted(files,key=lambda x:x.get("name",""))[-100:]
+            for item in files:
+                jid=str(item.get("name",""))[:-5]
+                if not jid or jid in seen:
+                    continue
+                raw,_=github_content(item["url"])
+                job=json.loads(raw)
+                if str(job.get("id","")) != jid:
+                    log("job_file_rejected",file=item.get("name"),reason="id_mismatch")
+                    continue
+                jobs.append(job)
+        if not jobs and not any(str(x.get("name","")).endswith(".json") for x in (listing if isinstance(listing,list) else [])):
+            raw,sha=github_content(JOBS_API)
+            obj=json.loads(raw)
+            if obj.get("version") != 1 or not isinstance(obj.get("jobs"),list):
+                raise ValueError("invalid_manifest")
+            jobs=[j for j in obj["jobs"] if str(j.get("id","")) not in seen]
+            meta["jobs_sha"]=sha
+    except urllib.error.HTTPError as e:
+        if e.code==404:
+            raw,sha=github_content(JOBS_API)
+            obj=json.loads(raw)
+            jobs=[j for j in obj.get("jobs",[]) if str(j.get("id","")) not in seen]
+            meta["jobs_sha"]=sha
+        else:
+            raise
     meta["jobs_checked"]=t
-    meta["jobs_sha"]=sha
     atomic_json(META,meta)
-    return obj["jobs"],meta
+    return jobs,meta
 
 def ssh_preto(script, timeout=30):
     full="$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();"+script
@@ -426,14 +456,14 @@ def main():
     meta=load_json(META,{})
     try: meta=maybe_self_update(meta)
     except Exception as e: log("self_update_error",error=type(e).__name__+":"+str(e)[:250])
-    try:
-        jobs,meta=fetch_jobs(meta)
-    except Exception as e:
-        log("fetch_error",error=type(e).__name__+":"+str(e)[:250]); return 1
-    if jobs is None: return 0
     seen=load_json(STATE,{})
     cutoff=time.time()-7*86400
     seen={k:v for k,v in seen.items() if float(v)>cutoff}
+    try:
+        jobs,meta=fetch_jobs(meta,seen)
+    except Exception as e:
+        log("fetch_error",error=type(e).__name__+":"+str(e)[:250]); return 1
+    if jobs is None: return 0
     for job in jobs:
         jid=str(job.get("id",""))
         if not jid or jid in seen: continue

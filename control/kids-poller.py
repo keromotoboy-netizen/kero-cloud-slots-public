@@ -189,6 +189,10 @@ $info=Get-ScheduledTaskInfo -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyCon
 [pscustomobject]@{installed=$true;sha256=$got;task_state=$task.State.ToString();last_result=if($info){$info.LastTaskResult}else{$null}}|ConvertTo-Json -Compress"""
     return ssh_preto(s,timeout=45)
 
+def action_preto_agent_syntax(params):
+    s=r"""$path='C:\ProgramData\Kero\agent\agent.ps1';$tokens=$null;$errors=$null;[System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)|Out-Null;[pscustomobject]@{exists=(Test-Path $path);error_count=@($errors).Count;errors=@($errors|ForEach-Object{[pscustomobject]@{message=$_.Message;line=$_.Extent.StartLineNumber;column=$_.Extent.StartColumnNumber;text=$_.Extent.Text}})}|ConvertTo-Json -Compress -Depth 6"""
+    return ssh_preto(s)
+
 def action_preto_agent_diagnostics(params):
     s=r"""$root='C:\ProgramData\Kero';$task=Get-ScheduledTask -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue;$info=Get-ScheduledTaskInfo -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue;$act=if($task){$task.Actions|Select-Object Execute,Arguments}else{$null};$log=if(Test-Path ($root+'\logs\agent.log')){@(Get-Content ($root+'\logs\agent.log') -Tail 20)}else{@()};$proc=Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -like '*Kero\\agent\\agent.ps1*'}|Select-Object -First 1 ProcessId,CommandLine;[pscustomobject]@{task_state=if($task){$task.State.ToString()}else{'Missing'};last_run=if($info){$info.LastRunTime}else{$null};last_result=if($info){$info.LastTaskResult}else{$null};action=$act;process=$proc;log=$log}|ConvertTo-Json -Compress -Depth 6"""
     return ssh_preto(s)
@@ -227,6 +231,7 @@ ACTIONS = {
   "preto.baseline.status": (1, action_preto_baseline_status),
   "preto.baseline.install": (2, action_preto_baseline_install),
   "preto.agent.status": (1, action_preto_agent_status),
+  "preto.agent.syntax": (1, action_preto_agent_syntax),
   "preto.agent.install": (2, action_preto_agent_install),
   "preto.agent.diagnostics": (1, action_preto_agent_diagnostics),
   "preto.agent.selftest": (1, action_preto_agent_selftest),

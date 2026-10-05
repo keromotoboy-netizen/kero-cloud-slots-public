@@ -128,6 +128,14 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T17:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1430-kids-version",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T15:30:00Z"
     }
   ]
 }

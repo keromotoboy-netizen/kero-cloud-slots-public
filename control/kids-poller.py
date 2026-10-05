@@ -11,6 +11,7 @@ JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
+CONTROL_VERSION = "2026.10.05.3"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -103,6 +104,9 @@ def ssh_preto(script, timeout=30):
     if p.returncode != 0:
         raise RuntimeError("remote_exit_"+str(p.returncode)+": "+out["stderr"][-1200:])
     return out
+
+def action_kids_version(params):
+    return {"device":DEVICE,"control_version":CONTROL_VERSION,"python":sys.version.split()[0]}
 
 def action_status_global(params):
     return {
@@ -208,6 +212,7 @@ def action_preto_service_restart(params):
     return ssh_preto(s)
 
 ACTIONS = {
+  "kids.version": (1, action_kids_version),
   "status.global": (1, action_status_global),
   "s24.health": (1, action_s24_health),
   "preto.status": (1, action_preto_status),

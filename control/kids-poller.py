@@ -120,6 +120,22 @@ def action_s24_health(params):
     with urllib.request.urlopen("http://"+PHONE+":8770/health",timeout=5) as r:
         return json.loads(r.read())
 
+def action_kids_read_control_source(params):
+    name=str(params.get("name",""))
+    allowed={
+      "s24-tail-task.py": pathlib.Path("/home/victor/kero-mobile/s24-tail-task.py"),
+      "s24-task.py": pathlib.Path("/home/victor/kero-mobile/s24-task.py"),
+      "remote-status.py": pathlib.Path("/home/victor/kero-mobile/remote-status.py"),
+      "background-watch.sh": pathlib.Path("/home/victor/kero-mobile/background-watch.sh"),
+    }
+    p=allowed.get(name)
+    if not p:
+        raise ValueError("source_not_allowlisted")
+    data=p.read_text(encoding="utf-8",errors="replace")
+    if len(data)>30000:
+        raise ValueError("source_too_large")
+    return {"name":name,"content":data}
+
 def ssh_s24(command, timeout=20):
     p=subprocess.run(
       ["ssh","-p","8022","-o","BatchMode=yes","-o","ConnectTimeout=5","u0_a435@"+PHONE,command],
@@ -330,6 +346,7 @@ ACTIONS = {
   "kids.version": (1, action_kids_version),
   "status.global": (1, action_status_global),
   "s24.health": (1, action_s24_health),
+  "kids.read_control_source": (1, action_kids_read_control_source),
   "s24.open_url": (1, action_s24_open_url),
   "s24.ssh.rescue.status": (1, action_s24_ssh_rescue_status),
   "s24.ssh.rescue": (2, action_s24_ssh_rescue),

@@ -5,9 +5,14 @@ const port = Number(process.env.PORT || 10000);
 const MAX_BODY = 1_000_000;
 const MAX_TEXT = 200_000;
 const MAX_RESULT = 64_000;
-const KIDS_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+const DEVICE_PUBLIC_KEYS = {
+  kids: `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEANb0DV7OTQnZnHS4DwC+YjjujOFf46kg9aTx8P8SpU2o=
------END PUBLIC KEY-----`;
+-----END PUBLIC KEY-----`,
+  cinza: `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAa0iaIpF3FvPnwMvWkHU0lEQDKKmktTsR6WkJZJUPyj4=
+-----END PUBLIC KEY-----`
+};
 const controlResults = new Map();
 
 const json=(res,code,obj)=>{
@@ -44,10 +49,12 @@ function text(v){
   return s;
 }
 function sha256buf(buf){return crypto.createHash('sha256').update(buf).digest('hex')}
-function verifyKids(raw,signature){
+function verifyDevice(device,raw,signature){
   try{
+    const key=DEVICE_PUBLIC_KEYS[String(device||'')];
+    if(!key) return false;
     const sig=Buffer.from(String(signature||''),'base64');
-    return sig.length>0 && crypto.verify(null,raw,KIDS_PUBLIC_KEY,sig);
+    return sig.length>0 && crypto.verify(null,raw,key,sig);
   }catch{return false}
 }
 function pruneResults(){
@@ -109,12 +116,13 @@ const server=http.createServer(async(req,res)=>{
     }
     if(req.method==='POST' && req.url==='/control/result'){
       const raw=await readRaw(req,128_000);
-      if(req.headers['x-kero-device']!=='kids') return json(res,403,{ok:false,error:'unknown_device'});
-      if(!verifyKids(raw,req.headers['x-kero-signature'])) return json(res,401,{ok:false,error:'bad_signature'});
+      const device=String(req.headers['x-kero-device']||'');
+      if(!DEVICE_PUBLIC_KEYS[device]) return json(res,403,{ok:false,error:'unknown_device'});
+      if(!verifyDevice(device,raw,req.headers['x-kero-signature'])) return json(res,401,{ok:false,error:'bad_signature'});
       const body=JSON.parse(raw.toString('utf8')||'{}');
       const jid=String(body?.job_id||'');
       if(!/^[A-Za-z0-9._:-]{8,128}$/.test(jid)) return json(res,400,{ok:false,error:'bad_job_id'});
-      if(body?.device!=='kids') return json(res,400,{ok:false,error:'device_mismatch'});
+      if(body?.device!==device) return json(res,400,{ok:false,error:'device_mismatch'});
       controlResults.set(jid,{body,receivedAt:Date.now()});
       pruneResults();
       console.log('KERO_CONTROL_RESULT '+JSON.stringify(body));

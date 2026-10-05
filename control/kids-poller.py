@@ -11,13 +11,13 @@ JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.7"
+CONTROL_VERSION = "2026.10.05.8"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
 PS = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 SERVICE_ALLOW = {"sshd","Tailscale","KeroDeviceAgent","KeroWatchdog"}
-MIN_FETCH_SECONDS = 90
+MIN_FETCH_SECONDS = 30
 SELF_UPDATE_SECONDS = 120
 
 BASE.mkdir(parents=True, exist_ok=True)
@@ -65,6 +65,8 @@ def maybe_self_update(meta):
             tmp=pathlib.Path(__file__).with_suffix(".new")
             tmp.write_bytes(raw); os.chmod(tmp,0o700); os.replace(tmp,__file__)
             log("self_updated",sha=sha)
+            atomic_json(META,meta)
+            os.execv(sys.executable,[sys.executable,__file__])
     finally:
         atomic_json(META,meta)
     return meta

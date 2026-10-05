@@ -154,6 +154,46 @@
       },
       "risk": 1,
       "expires_at": "2026-10-05T16:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1446-kids-version-v7",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T18:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1446-preto-s24-adb-status",
+      "target": "kids",
+      "action": "preto.s24.adb.status",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T18:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1446-preto-s24-ssh-rescue",
+      "target": "kids",
+      "action": "preto.s24.ssh.rescue",
+      "params": {},
+      "risk": 2,
+      "expires_at": "2026-10-05T18:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1446-s24-rescue-status-after-preto",
+      "target": "kids",
+      "action": "s24.ssh.rescue.status",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T18:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1446-cinza-connectivity-v2",
+      "target": "kids",
+      "action": "cinza.connectivity",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T18:00:00Z"
     }
   ]
 }

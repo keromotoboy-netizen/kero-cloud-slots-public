@@ -40,6 +40,16 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T15:00:00Z"
+    },
+    {
+      "id": "kero-20261005-s24-open-github-billing",
+      "target": "kids",
+      "action": "s24.open_url",
+      "params": {
+        "url": "https://github.com/settings/billing"
+      },
+      "risk": 1,
+      "expires_at": "2026-10-05T15:30:00Z"
     }
   ]
 }

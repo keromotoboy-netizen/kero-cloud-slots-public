@@ -136,6 +136,24 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T15:30:00Z"
+    },
+    {
+      "id": "kero-20261005-kids-v5-check",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T16:00:00Z"
+    },
+    {
+      "id": "kero-20261005-read-s24-tail-client",
+      "target": "kids",
+      "action": "kids.read_control_source",
+      "params": {
+        "name": "s24-tail-task.py"
+      },
+      "risk": 1,
+      "expires_at": "2026-10-05T16:00:00Z"
     }
   ]
 }

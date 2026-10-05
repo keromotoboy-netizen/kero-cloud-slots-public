@@ -250,6 +250,46 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T19:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1500-kids-version-v8",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T18:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1500-s24-agent-queue-status",
+      "target": "kids",
+      "action": "s24.agent.queue_status",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T18:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1500-s24-agent-sshd-status",
+      "target": "kids",
+      "action": "s24.agent.sshd_status",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T18:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1500-s24-agent-start-sshd",
+      "target": "kids",
+      "action": "s24.agent.start_sshd",
+      "params": {},
+      "risk": 2,
+      "expires_at": "2026-10-05T18:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1500-s24-agent-open-billing",
+      "target": "kids",
+      "action": "s24.agent.open_billing",
+      "params": {},
+      "risk": 2,
+      "expires_at": "2026-10-05T18:30:00Z"
     }
   ]
 }

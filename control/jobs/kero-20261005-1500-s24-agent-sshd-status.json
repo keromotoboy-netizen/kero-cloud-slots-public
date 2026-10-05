@@ -1,0 +1,8 @@
+{
+  "id": "kero-20261005-1500-s24-agent-sshd-status",
+  "target": "kids",
+  "action": "s24.agent.sshd_status",
+  "params": {},
+  "risk": 1,
+  "expires_at": "2026-10-05T18:30:00Z"
+}

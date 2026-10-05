@@ -178,13 +178,20 @@ $got=(Get-FileHash -Algorithm SHA256 -Path $tmp).Hash.ToLower()
 $want='872de5946b6bc6e6acfa30baf8c36d85f1606c85a14675964617ca64548c9e17'
 if($got -ne $want){Remove-Item -Force $tmp;throw 'agent_hash_mismatch'}
 Move-Item -Force $tmp $dst
-$cmd='powershell.exe -NoProfile -NonInteractive -File "C:\ProgramData\Kero\agent\agent.ps1"'
-& schtasks.exe /Create /TN 'KeroDeviceAgent' /SC ONSTART /TR $cmd /RU SYSTEM /RL HIGHEST /F | Out-Null
-& schtasks.exe /Run /TN 'KeroDeviceAgent' | Out-Null
-Start-Sleep -Seconds 2
+$act=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -NonInteractive -File "C:\ProgramData\Kero\agent\agent.ps1"'
+$tr=New-ScheduledTaskTrigger -AtStartup
+$settings=New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 3650) -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName 'KeroDeviceAgent' -Action $act -Trigger $tr -Settings $settings -User 'SYSTEM' -RunLevel Highest -Force|Out-Null
+Start-ScheduledTask -TaskName 'KeroDeviceAgent'
+Start-Sleep -Seconds 3
 $task=Get-ScheduledTask -TaskName 'KeroDeviceAgent' -ErrorAction Stop
-[pscustomobject]@{installed=$true;sha256=$got;task_state=$task.State.ToString()}|ConvertTo-Json -Compress"""
+$info=Get-ScheduledTaskInfo -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue
+[pscustomobject]@{installed=$true;sha256=$got;task_state=$task.State.ToString();last_result=if($info){$info.LastTaskResult}else{$null}}|ConvertTo-Json -Compress"""
     return ssh_preto(s,timeout=45)
+
+def action_preto_agent_diagnostics(params):
+    s=r"""$root='C:\ProgramData\Kero';$task=Get-ScheduledTask -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue;$info=Get-ScheduledTaskInfo -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue;$act=if($task){$task.Actions|Select-Object Execute,Arguments}else{$null};$log=if(Test-Path ($root+'\logs\agent.log')){@(Get-Content ($root+'\logs\agent.log') -Tail 20)}else{@()};$proc=Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -like '*Kero\\agent\\agent.ps1*'}|Select-Object -First 1 ProcessId,CommandLine;[pscustomobject]@{task_state=if($task){$task.State.ToString()}else{'Missing'};last_run=if($info){$info.LastRunTime}else{$null};last_result=if($info){$info.LastTaskResult}else{$null};action=$act;process=$proc;log=$log}|ConvertTo-Json -Compress -Depth 6"""
+    return ssh_preto(s)
 
 def action_preto_agent_selftest(params):
     jid="agent-selftest-"+str(int(time.time()))+"-"+os.urandom(3).hex()
@@ -221,6 +228,7 @@ ACTIONS = {
   "preto.baseline.install": (2, action_preto_baseline_install),
   "preto.agent.status": (1, action_preto_agent_status),
   "preto.agent.install": (2, action_preto_agent_install),
+  "preto.agent.diagnostics": (1, action_preto_agent_diagnostics),
   "preto.agent.selftest": (1, action_preto_agent_selftest),
   "preto.disk": (1, action_preto_disk),
   "preto.process.top": (1, action_preto_process_top),

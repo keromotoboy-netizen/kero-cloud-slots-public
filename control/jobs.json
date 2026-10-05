@@ -96,6 +96,38 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T17:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1442-kids-version-v6",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T17:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1442-s24-rescue-status",
+      "target": "kids",
+      "action": "s24.ssh.rescue.status",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T17:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1442-s24-rescue",
+      "target": "kids",
+      "action": "s24.ssh.rescue",
+      "params": {},
+      "risk": 2,
+      "expires_at": "2026-10-05T17:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1442-cinza-connectivity",
+      "target": "kids",
+      "action": "cinza.connectivity",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T17:30:00Z"
     }
   ]
 }

@@ -171,7 +171,7 @@ $tmp=Join-Path $agentDir 'agent.ps1.tmp'
 $dst=Join-Path $agentDir 'agent.ps1'
 Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $tmp
 $got=(Get-FileHash -Algorithm SHA256 -Path $tmp).Hash.ToLower()
-$want='e01ed865d5fe01a28cc00a5ec74ad07233709d629f2939f62d37f06bbecb9efe'
+$want='872de5946b6bc6e6acfa30baf8c36d85f1606c85a14675964617ca64548c9e17'
 if($got -ne $want){Remove-Item -Force $tmp;throw 'agent_hash_mismatch'}
 Move-Item -Force $tmp $dst
 $cmd='powershell.exe -NoProfile -NonInteractive -File "C:\ProgramData\Kero\agent\agent.ps1"'

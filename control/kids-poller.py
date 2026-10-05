@@ -11,7 +11,7 @@ JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.15-s24-agent"
+CONTROL_VERSION = "2026.10.05.16-bootstrap"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -151,6 +151,21 @@ def action_s24_agent_start_sshd(params):
 
 def action_s24_agent_open_billing(params):
     return s24_agent_task("open_url","https://github.com/settings/billing")
+
+def action_kids_bootstrap_inventory(params):
+    root=pathlib.Path.home()/"kero-mobile"/"bootstrap"
+    if not root.exists():
+        return {"exists":False,"files":[]}
+    files=[]
+    for p in sorted(root.rglob("*")):
+        if not p.is_file(): continue
+        rel=str(p.relative_to(root))
+        if len(files)>=100: break
+        item={"path":rel,"size":p.stat().st_size}
+        if p.suffix.lower() in {".sh",".py",".txt",".json"} and p.stat().st_size<=30000:
+            item["content"]=p.read_text(encoding="utf-8",errors="replace")
+        files.append(item)
+    return {"exists":True,"files":files}
 
 def action_kids_read_control_source(params):
     name=str(params.get("name",""))
@@ -410,6 +425,7 @@ ACTIONS = {
   "s24.agent.start_sshd": (2, action_s24_agent_start_sshd),
   "s24.agent.open_billing": (2, action_s24_agent_open_billing),
   "kids.read_control_source": (1, action_kids_read_control_source),
+  "kids.bootstrap.inventory": (1, action_kids_bootstrap_inventory),
   "s24.open_url": (1, action_s24_open_url),
   "s24.ssh.rescue.status": (1, action_s24_ssh_rescue_status),
   "s24.ssh.rescue": (2, action_s24_ssh_rescue),

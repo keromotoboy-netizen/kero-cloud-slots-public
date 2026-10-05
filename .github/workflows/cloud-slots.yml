@@ -1,21 +1,26 @@
 name: Kero Cloud Slots
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "worker.py"
+      - ".github/workflows/cloud-slots.yml"
   workflow_dispatch:
     inputs:
       task:
         description: Tarefa pública permitida
         required: true
         type: choice
-        options: [site-smoke, runtime-benchmark]
+        options: [queue-worker, site-smoke, runtime-benchmark]
       slots:
         description: Quantidade de slots paralelos
         required: true
-        default: "4"
+        default: "1"
         type: choice
         options: ["1","2","4","8","12","16"]
       runner:
-        description: Tipo de runner
+        description: Tipo de runner padrão
         required: true
         default: linux
         type: choice
@@ -25,6 +30,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   prepare:
@@ -37,7 +43,11 @@ jobs:
       - id: m
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "push" ]; then
+            SLOTS="1"
+            TASK="queue-worker"
+            RUNNER="linux"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             SLOTS="${{ inputs.slots }}"
             TASK="${{ inputs.task }}"
             RUNNER="${{ inputs.runner }}"
@@ -47,7 +57,7 @@ jobs:
             RUNNER="${{ github.event.client_payload.runner }}"
           fi
           case "$SLOTS" in 1|2|4|8|12|16) ;; *) SLOTS=1 ;; esac
-          case "$TASK" in site-smoke|runtime-benchmark) ;; *) TASK=site-smoke ;; esac
+          case "$TASK" in queue-worker|site-smoke|runtime-benchmark) ;; *) TASK=queue-worker ;; esac
           case "$RUNNER" in
             windows) LABEL=windows-latest ;;
             arm) LABEL=ubuntu-24.04-arm ;;
@@ -68,18 +78,59 @@ jobs:
     runs-on: ${{ needs.prepare.outputs.runner }}
     timeout-minutes: 5
     steps:
-      - name: Slot identity
+      - uses: actions/checkout@v4
+        if: needs.prepare.outputs.task == 'queue-worker'
+
+      - name: Claim PUBLIC_SAFE job
+        id: claim
+        if: needs.prepare.outputs.task == 'queue-worker'
         shell: bash
-        if: runner.os != 'Windows'
+        env:
+          BRAIN_WORKER_URL: https://noqdjfuqaqlicugbqihv.supabase.co/functions/v1/kero-brain-github-worker
         run: |
-          echo "Kero cloud slot ${{ matrix.slot }} / ${{ runner.os }}"
-          echo "CPU: $(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc)"
-      - name: Slot identity Windows
-        shell: pwsh
-        if: runner.os == 'Windows'
+          set -euo pipefail
+          OIDC_JSON=$(curl -fsS             -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=kero-brain-worker")
+          OIDC=$(printf '%s' "$OIDC_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);if(!j.value)process.exit(2);process.stdout.write(j.value)})')
+          curl -fsS             -H "Authorization: Bearer $OIDC"             -H "Content-Type: application/json"             -d '{"action":"claim","capabilities":["health","sha256","text-stats","json-summary","json-normalize","manifest"]}'             "$BRAIN_WORKER_URL" > claim.json
+          node <<'NODE'
+          const fs=require('fs');
+          const r=JSON.parse(fs.readFileSync('claim.json','utf8'));
+          if(!r.ok) throw new Error(r.error||'claim_failed');
+          const claimed=!!r.job;
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'claimed='+String(claimed)+'\n');
+          if(claimed) console.log(JSON.stringify({claimed:true,id:r.job.id,task:r.job.task,classification:r.job.classification}));
+          else console.log(JSON.stringify({claimed:false,reason:r.reason||'empty_queue'}));
+          NODE
+
+      - name: Execute allowlisted worker
+        id: work
+        if: needs.prepare.outputs.task == 'queue-worker' && steps.claim.outputs.claimed == 'true'
+        continue-on-error: true
+        shell: bash
+        run: python worker.py
+
+      - name: Complete PUBLIC_SAFE job
+        if: always() && needs.prepare.outputs.task == 'queue-worker' && steps.claim.outputs.claimed == 'true'
+        shell: bash
+        env:
+          BRAIN_WORKER_URL: https://noqdjfuqaqlicugbqihv.supabase.co/functions/v1/kero-brain-github-worker
         run: |
-          Write-Host "Kero cloud slot ${{ matrix.slot }} / Windows"
-          Write-Host "CPU: $env:NUMBER_OF_PROCESSORS"
+          set -euo pipefail
+          OIDC_JSON=$(curl -fsS             -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=kero-brain-worker")
+          OIDC=$(printf '%s' "$OIDC_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);if(!j.value)process.exit(2);process.stdout.write(j.value)})')
+          node <<'NODE' > complete.json
+          const fs=require('fs');
+          const claim=JSON.parse(fs.readFileSync('claim.json','utf8'));
+          let result={ok:false,error:'worker_result_missing'};
+          try{result=JSON.parse(fs.readFileSync('result.json','utf8'))}catch{}
+          const body=result.ok
+            ? {action:'complete',id:claim.job.id,result:{task:result.task,result:result.result}}
+            : {action:'complete',id:claim.job.id,error:String(result.error||'worker_failed').slice(0,500)};
+          process.stdout.write(JSON.stringify(body));
+          NODE
+          curl -fsS             -H "Authorization: Bearer $OIDC"             -H "Content-Type: application/json"             --data-binary @complete.json             "$BRAIN_WORKER_URL" > complete-response.json
+          node -e "const r=require('./complete-response.json'); if(!r.ok) throw new Error(r.error||'complete_failed'); console.log(JSON.stringify(r.job))"
+
       - name: Site smoke
         if: needs.prepare.outputs.task == 'site-smoke'
         shell: bash
@@ -101,6 +152,7 @@ jobs:
           }
           process.exit(bad?2:0);
           NODE
+
       - name: Runtime benchmark
         if: needs.prepare.outputs.task == 'runtime-benchmark'
         shell: bash

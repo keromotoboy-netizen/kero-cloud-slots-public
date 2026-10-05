@@ -306,6 +306,22 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T16:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1458-kids-version-v11",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T19:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1458-s24-api-probe",
+      "target": "kids",
+      "action": "s24.api.probe",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T19:30:00Z"
     }
   ]
 }

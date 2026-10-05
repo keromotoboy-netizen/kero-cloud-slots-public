@@ -210,6 +210,30 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T16:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1450-kids-version-v8",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T18:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1450-preto-agent-repair-v2",
+      "target": "kids",
+      "action": "preto.agent.repair",
+      "params": {},
+      "risk": 2,
+      "expires_at": "2026-10-05T18:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1450-preto-agent-selftest-v2",
+      "target": "kids",
+      "action": "preto.agent.selftest",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T18:30:00Z"
     }
   ]
 }

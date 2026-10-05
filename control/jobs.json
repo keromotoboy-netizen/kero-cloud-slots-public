@@ -2,12 +2,12 @@
   "version": 1,
   "jobs": [
     {
-      "id": "kero-20261005-0221-preto-agent-diagnostics",
+      "id": "kero-20261005-0227-preto-agent-syntax",
       "target": "kids",
-      "action": "preto.agent.diagnostics",
+      "action": "preto.agent.syntax",
       "params": {},
       "risk": 1,
-      "expires_at": "2026-10-05T04:00:00Z"
+      "expires_at": "2026-10-05T04:15:00Z"
     }
   ]
 }

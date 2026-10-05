@@ -1,5 +1,6 @@
 version: 2.1
 
+# Kero PUBLIC_SAFE CircleCI bootstrap validated from ChatGPT.
 jobs:
   public-smoke:
     docker:

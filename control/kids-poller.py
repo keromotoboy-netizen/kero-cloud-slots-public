@@ -290,8 +290,12 @@ Start-Sleep -Seconds 2
 
 def action_preto_cinza_smb_status(params):
     s=r"""$hostip='100.121.228.117'
-$public=Test-Path ('\\\\'+$hostip+'\\Users\\Public')
-$admin=Test-Path ('\\\\'+$hostip+'\\C
+$public=Test-Path ('\\'+$hostip+'\Users\Public')
+$admin=Test-Path ('\\'+$hostip+'\C$')
+[pscustomobject]@{host=$hostip;public_share=$public;admin_share=$admin}|ConvertTo-Json -Compress"""
+    return ssh_preto(s)
+
+def action_preto_status(params):
     s=r"""$os=Get-CimInstance Win32_OperatingSystem;$cs=Get-CimInstance Win32_ComputerSystem;$d=Get-PSDrive C;[pscustomobject]@{host=$env:COMPUTERNAME;user=$env:USERNAME;uptime_s=[int]((Get-Date)-$os.LastBootUpTime).TotalSeconds;ram_total_gb=[math]::Round($cs.TotalPhysicalMemory/1GB,1);ram_free_gb=[math]::Round($os.FreePhysicalMemory*1KB/1GB,1);c_free_gb=[math]::Round($d.Free/1GB,1);sshd=(Get-Service sshd -ErrorAction SilentlyContinue).Status.ToString();tailscale=(Get-Service Tailscale -ErrorAction SilentlyContinue).Status.ToString()}|ConvertTo-Json -Compress"""
     return ssh_preto(s)
 

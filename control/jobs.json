@@ -428,6 +428,22 @@
       },
       "risk": 1,
       "expires_at": "2026-10-05T21:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1545-kids-version-v16",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T19:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1545-bootstrap-inventory",
+      "target": "kids",
+      "action": "kids.bootstrap.inventory",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T19:30:00Z"
     }
   ]
 }

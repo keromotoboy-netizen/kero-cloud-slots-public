@@ -12,7 +12,7 @@ JOBS_DIR_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs?ref=m
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.8"
+CONTROL_VERSION = "2026.10.05.10"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -122,7 +122,7 @@ def fetch_jobs(meta, seen):
     return jobs,meta
 
 def ssh_preto(script, timeout=30):
-    full="$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();"+script
+    full="$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();$ProgressPreference='SilentlyContinue';$VerbosePreference='SilentlyContinue';$InformationPreference='SilentlyContinue';"+script
     enc=base64.b64encode(full.encode("utf-16le")).decode()
     remote=PS+" -NoProfile -NonInteractive -EncodedCommand "+enc
     p=subprocess.run(["ssh","-o","BatchMode=yes","-o","ConnectTimeout=5","DELL@"+PRETO,remote],

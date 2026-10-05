@@ -142,6 +142,10 @@ foreach($n in @('sshd','Tailscale')){
     if($s.Status -ne 'Running'){Start-Service -Name $n}
   }
 }
+$agentTask=Get-ScheduledTask -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue
+if($agentTask -and $agentTask.State -ne 'Running'){
+  Start-ScheduledTask -TaskName 'KeroDeviceAgent' -ErrorAction SilentlyContinue
+}
 Add-Content -Path $log -Value ((Get-Date).ToString('o')+' ok')
 '@
 Set-Content -Path (Join-Path $root 'scripts\watchdog.ps1') -Value $watch -Encoding UTF8

@@ -1,0 +1,8 @@
+{
+  "id": "kero-20261005-1445-preto-agent-debug",
+  "target": "kids",
+  "action": "preto.agent.debug",
+  "params": {},
+  "risk": 1,
+  "expires_at": "2026-10-05T16:30:00Z"
+}

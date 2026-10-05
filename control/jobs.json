@@ -24,6 +24,22 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T15:00:00Z"
+    },
+    {
+      "id": "kero-20261005-kids-version-check",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T15:00:00Z"
+    },
+    {
+      "id": "kero-20261005-global-connectivity-check",
+      "target": "kids",
+      "action": "status.global",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T15:00:00Z"
     }
   ]
 }

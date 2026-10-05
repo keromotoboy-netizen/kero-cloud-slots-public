@@ -11,7 +11,7 @@ JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.3"
+CONTROL_VERSION = "2026.10.05.4"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -119,6 +119,28 @@ def action_status_global(params):
 def action_s24_health(params):
     with urllib.request.urlopen("http://"+PHONE+":8770/health",timeout=5) as r:
         return json.loads(r.read())
+
+def ssh_s24(command, timeout=20):
+    p=subprocess.run(
+      ["ssh","-p","8022","-o","BatchMode=yes","-o","ConnectTimeout=5","u0_a435@"+PHONE,command],
+      capture_output=True,timeout=timeout,text=True
+    )
+    out={"exit":p.returncode,"stdout":p.stdout[-4000:],"stderr":p.stderr[-2000:]}
+    if p.returncode != 0:
+        raise RuntimeError("s24_remote_exit_"+str(p.returncode)+": "+out["stderr"][-1000:])
+    return out
+
+def action_s24_open_url(params):
+    url=str(params.get("url","")).strip()
+    allowed={
+      "https://github.com/settings/billing",
+      "https://github.com/settings/billing/budgets"
+    }
+    if url not in allowed:
+        raise ValueError("url_not_allowlisted")
+    q=base64.b64encode(url.encode()).decode()
+    cmd="u=$(printf '%s' '"+q+"' | base64 -d); termux-open-url \"$u\""
+    return ssh_s24(cmd,timeout=15)
 
 def action_preto_status(params):
     s=r"""$os=Get-CimInstance Win32_OperatingSystem;$cs=Get-CimInstance Win32_ComputerSystem;$d=Get-PSDrive C;[pscustomobject]@{host=$env:COMPUTERNAME;user=$env:USERNAME;uptime_s=[int]((Get-Date)-$os.LastBootUpTime).TotalSeconds;ram_total_gb=[math]::Round($cs.TotalPhysicalMemory/1GB,1);ram_free_gb=[math]::Round($os.FreePhysicalMemory*1KB/1GB,1);c_free_gb=[math]::Round($d.Free/1GB,1);sshd=(Get-Service sshd -ErrorAction SilentlyContinue).Status.ToString();tailscale=(Get-Service Tailscale -ErrorAction SilentlyContinue).Status.ToString()}|ConvertTo-Json -Compress"""
@@ -230,6 +252,7 @@ ACTIONS = {
   "kids.version": (1, action_kids_version),
   "status.global": (1, action_status_global),
   "s24.health": (1, action_s24_health),
+  "s24.open_url": (1, action_s24_open_url),
   "preto.status": (1, action_preto_status),
   "preto.admin.status": (1, action_preto_admin_status),
   "preto.baseline.status": (1, action_preto_baseline_status),

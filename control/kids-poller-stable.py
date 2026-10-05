@@ -14,7 +14,7 @@ RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 SUPABASE_URL = "https://noqdjfuqaqlicugbqihv.supabase.co"
 SUPABASE_KEY = "sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.stable.3"
+CONTROL_VERSION = "2026.10.05.stable.4"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -74,7 +74,13 @@ def maybe_self_update(meta):
         current=pathlib.Path(__file__).read_bytes()
         if raw != current:
             tmp=pathlib.Path(__file__).with_suffix(".new")
-            tmp.write_bytes(raw); os.chmod(tmp,0o700); os.replace(tmp,__file__)
+            tmp.write_bytes(raw)
+            os.chmod(tmp,0o700)
+            chk=subprocess.run([sys.executable,"-m","py_compile",str(tmp)],capture_output=True,text=True,timeout=15)
+            if chk.returncode != 0:
+                tmp.unlink(missing_ok=True)
+                raise RuntimeError("candidate_compile_failed:"+chk.stderr[-500:])
+            os.replace(tmp,__file__)
             log("self_updated",sha=sha)
             atomic_json(META,meta)
             os.execv(sys.executable,[sys.executable,__file__])

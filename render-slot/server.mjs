@@ -134,6 +134,35 @@ const server=http.createServer(async(req,res)=>{
       for(let i=0;i<5e7;i++) x=(x+i)%1000000007;
       return json(res,200,{ok:true,ms:Date.now()-t,x,arch:process.arch,platform:process.platform});
     }
+    if(req.method==='POST' && req.url==='/dispatch-github'){
+      if(!secureEq(req.headers['x-kero-worker-token'],process.env.KERO_WORKER_TOKEN)) return json(res,401,{ok:false,error:'unauthorized'});
+      const body=await readJson(req);
+      const task=String(body?.task||'queue-worker');
+      const slots=String(body?.slots||'1');
+      const runner=String(body?.runner||'linux');
+      if(task!=='queue-worker') return json(res,400,{ok:false,error:'task_not_allowed'});
+      if(!['1','2','4','8','12','16'].includes(slots)) return json(res,400,{ok:false,error:'slots_not_allowed'});
+      if(!['linux','windows','arm'].includes(runner)) return json(res,400,{ok:false,error:'runner_not_allowed'});
+      const token=String(process.env.GITHUB_PUBLIC_DISPATCH_TOKEN||'');
+      if(!token) return json(res,503,{ok:false,error:'github_dispatch_token_missing'});
+      const gh=await fetch('https://api.github.com/repos/keromotoboy-netizen/kero-cloud-slots-public/actions/workflows/cloud-slots.yml/dispatches',{
+        method:'POST',
+        headers:{
+          'authorization':'Bearer '+token,
+          'accept':'application/vnd.github+json',
+          'x-github-api-version':'2022-11-28',
+          'content-type':'application/json',
+          'user-agent':'kero-render-dispatcher'
+        },
+        body:JSON.stringify({ref:'main',inputs:{task,slots,runner}}),
+        signal:AbortSignal.timeout(20000)
+      });
+      if(gh.status!==204){
+        const t=(await gh.text()).slice(0,500);
+        return json(res,502,{ok:false,error:'github_dispatch_failed',status:gh.status,detail:t});
+      }
+      return json(res,202,{ok:true,accepted:true,task,slots,runner});
+    }
     if(req.method==='POST' && req.url==='/execute'){
       if(!secureEq(req.headers['x-kero-worker-token'],process.env.KERO_WORKER_TOKEN)) return json(res,401,{ok:false,error:'unauthorized'});
       const body=await readJson(req), task=String(body?.task||''), fn=tasks[task];

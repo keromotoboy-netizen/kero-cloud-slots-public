@@ -322,6 +322,46 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T19:30:00Z"
+    },
+    {
+      "id": "kero-20261005-1502-kids-version-v12",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T20:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1502-preto-agent-diag-final",
+      "target": "kids",
+      "action": "preto.agent.diagnostics",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T20:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1502-preto-process-top",
+      "target": "kids",
+      "action": "preto.process.top",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T20:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1502-preto-cinza-smb-status-v2",
+      "target": "kids",
+      "action": "preto.cinza.smb.status",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T20:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1502-s24-api-probe-v2",
+      "target": "kids",
+      "action": "s24.api.probe",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T20:00:00Z"
     }
   ]
 }

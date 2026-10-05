@@ -10,6 +10,8 @@ REPO = "keromotoboy-netizen/kero-cloud-slots-public"
 JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=main"
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
+SUPABASE_URL = "https://noqdjfuqaqlicugbqihv.supabase.co"
+SUPABASE_KEY = "sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr"
 DEVICE = "kids"
 CONTROL_VERSION = "2026.10.05.16-bootstrap"
 PRETO = "100.101.3.28"
@@ -17,8 +19,8 @@ CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
 PS = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 SERVICE_ALLOW = {"sshd","Tailscale","KeroDeviceAgent","KeroWatchdog"}
-MIN_FETCH_SECONDS = 30
-SELF_UPDATE_SECONDS = 120
+MIN_FETCH_SECONDS = 60
+SELF_UPDATE_SECONDS = 600
 
 BASE.mkdir(parents=True, exist_ok=True)
 
@@ -78,18 +80,32 @@ def tcp(host,port,timeout=2):
     except Exception:
         return False
 
-def fetch_jobs(meta):
+def fetch_jobs(meta, seen):
     t=time.time()
     if t-float(meta.get("jobs_checked",0)) < MIN_FETCH_SECONDS:
         return None,meta
-    raw,sha=github_content(JOBS_API)
-    obj=json.loads(raw)
-    if obj.get("version") != 1 or not isinstance(obj.get("jobs"),list):
-        raise ValueError("invalid_manifest")
+    qs=(
+      "select=id,target,action,params,risk,expires_at,created_at"
+      "&target=in.(kids,any)"
+      "&order=created_at.asc"
+      "&limit=100"
+    )
+    url=SUPABASE_URL+"/rest/v1/kero_control_jobs_public?"+qs
+    req=urllib.request.Request(url,headers={
+      "apikey":SUPABASE_KEY,
+      "Accept":"application/json",
+      "User-Agent":"kero-kids-control/4",
+      "Cache-Control":"no-cache"
+    })
+    with urllib.request.urlopen(req,timeout=12) as r:
+        jobs=json.loads(r.read())
+    if not isinstance(jobs,list):
+        raise ValueError("invalid_supabase_jobs")
+    jobs=[j for j in jobs if str(j.get("id","")) not in seen]
     meta["jobs_checked"]=t
-    meta["jobs_sha"]=sha
+    meta["jobs_source"]="supabase"
     atomic_json(META,meta)
-    return obj["jobs"],meta
+    return jobs,meta
 
 def ssh_preto(script, timeout=30):
     full="$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();"+script

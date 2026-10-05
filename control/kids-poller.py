@@ -11,7 +11,7 @@ JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.6"
+CONTROL_VERSION = "2026.10.05.7"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -178,6 +178,33 @@ def action_s24_ssh_rescue(params):
 def action_cinza_connectivity(params):
     ports=[22,445,3389,5985,5986]
     return {"host":CINZA,"ports":{str(p):tcp(CINZA,p,1.5) for p in ports}}
+
+def action_preto_s24_adb_status(params):
+    s=r"""$adb=(Get-Command adb -ErrorAction SilentlyContinue).Source
+if(!$adb){[pscustomobject]@{adb=$false}|ConvertTo-Json -Compress;exit 0}
+$dev=& $adb devices -l 2>&1
+$mdns=& $adb mdns services 2>&1
+[pscustomobject]@{adb=$true;path=$adb;devices=@($dev);mdns=@($mdns)}|ConvertTo-Json -Compress -Depth 5"""
+    return ssh_preto(s)
+
+def action_preto_s24_ssh_rescue(params):
+    s=r"""$ErrorActionPreference='Stop'
+$adb=(Get-Command adb -ErrorAction SilentlyContinue).Source
+if(!$adb){throw 'adb_missing'}
+$rows=@(& $adb devices -l 2>&1)
+$line=$rows|Where-Object{$_ -match 'model:SM_S921B' -and $_ -match '\sdevice\s'}|Select-Object -First 1
+if(!$line){[pscustomobject]@{attempted=$false;reason='s24_not_paired_or_offline'}|ConvertTo-Json -Compress;exit 0}
+$serial=($line -split '\s+')[0]
+$power=@(& $adb -s $serial shell dumpsys power 2>&1)
+$active=($power -match 'mWakefulness=Awake') -or ($power -match 'mInteractive=true')
+if($active){[pscustomobject]@{attempted=$false;reason='user_active';serial=$serial}|ConvertTo-Json -Compress;exit 0}
+& $adb -s $serial shell am start -n com.termux/.app.TermuxActivity | Out-Null
+Start-Sleep -Seconds 1
+& $adb -s $serial shell input text sshd | Out-Null
+& $adb -s $serial shell input keyevent 66 | Out-Null
+Start-Sleep -Seconds 2
+[pscustomobject]@{attempted=$true;serial=$serial}|ConvertTo-Json -Compress"""
+    return ssh_preto(s,timeout=35)
 
 def action_preto_status(params):
     s=r"""$os=Get-CimInstance Win32_OperatingSystem;$cs=Get-CimInstance Win32_ComputerSystem;$d=Get-PSDrive C;[pscustomobject]@{host=$env:COMPUTERNAME;user=$env:USERNAME;uptime_s=[int]((Get-Date)-$os.LastBootUpTime).TotalSeconds;ram_total_gb=[math]::Round($cs.TotalPhysicalMemory/1GB,1);ram_free_gb=[math]::Round($os.FreePhysicalMemory*1KB/1GB,1);c_free_gb=[math]::Round($d.Free/1GB,1);sshd=(Get-Service sshd -ErrorAction SilentlyContinue).Status.ToString();tailscale=(Get-Service Tailscale -ErrorAction SilentlyContinue).Status.ToString()}|ConvertTo-Json -Compress"""
@@ -352,6 +379,8 @@ ACTIONS = {
   "s24.ssh.rescue": (2, action_s24_ssh_rescue),
   "cinza.connectivity": (1, action_cinza_connectivity),
   "preto.status": (1, action_preto_status),
+  "preto.s24.adb.status": (1, action_preto_s24_adb_status),
+  "preto.s24.ssh.rescue": (2, action_preto_s24_ssh_rescue),
   "preto.admin.status": (1, action_preto_admin_status),
   "preto.baseline.status": (1, action_preto_baseline_status),
   "preto.baseline.install": (2, action_preto_baseline_install),

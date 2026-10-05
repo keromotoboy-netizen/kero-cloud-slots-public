@@ -362,6 +362,14 @@
       "params": {},
       "risk": 1,
       "expires_at": "2026-10-05T20:00:00Z"
+    },
+    {
+      "id": "kero-20261005-1510-kids-version-v12-check",
+      "target": "kids",
+      "action": "kids.version",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T20:30:00Z"
     }
   ]
 }

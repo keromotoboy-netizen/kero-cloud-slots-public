@@ -316,6 +316,7 @@ ACTIONS = {
   "preto.baseline.install": (2, action_preto_baseline_install),
   "preto.agent.status": (1, action_preto_agent_status),
   "preto.agent.policy": (1, action_preto_agent_policy),
+  "preto.agent.repair": (2, action_preto_agent_repair),
   "preto.agent.syntax": (1, action_preto_agent_syntax),
   "preto.agent.install": (2, action_preto_agent_install),
   "preto.agent.diagnostics": (1, action_preto_agent_diagnostics),

@@ -11,7 +11,7 @@ JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.14-recovery"
+CONTROL_VERSION = "2026.10.05.15-s24-agent"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -121,6 +121,36 @@ def action_status_global(params):
 def action_s24_health(params):
     with urllib.request.urlopen("http://"+PHONE+":8770/health",timeout=5) as r:
         return json.loads(r.read())
+
+def s24_agent_task(op,data="",timeout=12):
+    token=(pathlib.Path.home()/"kero-mobile"/"worker.token").read_text().strip()
+    payload=json.dumps({"op":op,"data":data},ensure_ascii=False).encode()
+    req=urllib.request.Request(
+      "http://"+PHONE+":8770/task",
+      data=payload,
+      headers={"Content-Type":"application/json","X-Kero-Token":token},
+      method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req,timeout=timeout) as r:
+            raw=r.read().decode("utf-8",errors="replace")
+            try: body=json.loads(raw)
+            except Exception: body=raw[:4000]
+            return {"http":r.status,"body":body}
+    except Exception as e:
+        return {"error":type(e).__name__+":"+str(e)[:500]}
+
+def action_s24_agent_queue_status(params):
+    return s24_agent_task("queue_status")
+
+def action_s24_agent_sshd_status(params):
+    return s24_agent_task("sshd_status")
+
+def action_s24_agent_start_sshd(params):
+    return s24_agent_task("start_sshd")
+
+def action_s24_agent_open_billing(params):
+    return s24_agent_task("open_url","https://github.com/settings/billing")
 
 def action_kids_read_control_source(params):
     name=str(params.get("name",""))
@@ -375,6 +405,10 @@ ACTIONS = {
   "kids.version": (1, action_kids_version),
   "status.global": (1, action_status_global),
   "s24.health": (1, action_s24_health),
+  "s24.agent.queue_status": (1, action_s24_agent_queue_status),
+  "s24.agent.sshd_status": (1, action_s24_agent_sshd_status),
+  "s24.agent.start_sshd": (2, action_s24_agent_start_sshd),
+  "s24.agent.open_billing": (2, action_s24_agent_open_billing),
   "kids.read_control_source": (1, action_kids_read_control_source),
   "s24.open_url": (1, action_s24_open_url),
   "s24.ssh.rescue.status": (1, action_s24_ssh_rescue_status),

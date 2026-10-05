@@ -12,7 +12,7 @@ JOBS_DIR_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs?ref=m
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.10"
+CONTROL_VERSION = "2026.10.05.11"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -221,6 +221,19 @@ def action_s24_open_url(params):
     q=base64.b64encode(url.encode()).decode()
     cmd="u=$(printf '%s' '"+q+"' | base64 -d); termux-open-url \"$u\""
     return ssh_s24(cmd,timeout=15)
+
+def action_s24_api_probe(params):
+    dispatcher=pathlib.Path.home()/"kero-mobile"/"s24-tail-task.py"
+    if not dispatcher.exists(): raise FileNotFoundError("dispatcher_missing")
+    ops=["sysinfo","status","capabilities","ping","help"]
+    out={}
+    for op in ops:
+        try:
+            p=subprocess.run(["python3",str(dispatcher),op],capture_output=True,text=True,timeout=12)
+            out[op]={"exit":p.returncode,"stdout":p.stdout[-2500:],"stderr":p.stderr[-800:]}
+        except Exception as e:
+            out[op]={"error":type(e).__name__+":"+str(e)[:300]}
+    return out
 
 def action_s24_ssh_rescue_status(params):
     logp=pathlib.Path.home()/"kero-mobile"/"s24-ssh-rescue.log"
@@ -440,6 +453,7 @@ ACTIONS = {
   "kids.version": (1, action_kids_version),
   "status.global": (1, action_status_global),
   "s24.health": (1, action_s24_health),
+  "s24.api.probe": (1, action_s24_api_probe),
   "s24.agent.queue_status": (1, action_s24_agent_queue_status),
   "s24.agent.sshd_status": (1, action_s24_agent_sshd_status),
   "s24.agent.start_sshd": (2, action_s24_agent_start_sshd),

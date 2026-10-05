@@ -2,20 +2,28 @@
   "version": 1,
   "jobs": [
     {
-      "id": "kero-20261005-0158-status-global",
-      "target": "kids",
-      "action": "status.global",
-      "params": {},
-      "risk": 1,
-      "expires_at": "2026-10-05T02:30:00Z"
-    },
-    {
-      "id": "kero-20261005-0158-preto-status",
+      "id": "kero-20261005-0202-preto-status-v2",
       "target": "kids",
       "action": "preto.status",
       "params": {},
       "risk": 1,
-      "expires_at": "2026-10-05T02:30:00Z"
+      "expires_at": "2026-10-05T03:00:00Z"
+    },
+    {
+      "id": "kero-20261005-0202-preto-admin",
+      "target": "kids",
+      "action": "preto.admin.status",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T03:00:00Z"
+    },
+    {
+      "id": "kero-20261005-0202-preto-baseline-status",
+      "target": "kids",
+      "action": "preto.baseline.status",
+      "params": {},
+      "risk": 1,
+      "expires_at": "2026-10-05T03:00:00Z"
     }
   ]
 }

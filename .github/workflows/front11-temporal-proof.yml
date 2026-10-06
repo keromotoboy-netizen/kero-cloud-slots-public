@@ -93,16 +93,7 @@ jobs:
 
           if [ "$PROOF_MODE" = "temporal-tool-down" ]; then
             echo "EXPECTED_TEMPORAL_UNAVAILABLE: Temporal Service intentionally not started; Central must retain authority and place parent job into fallback." > client.err
-            python - <<'PY'
-            import socket
-            s=socket.socket()
-            s.settimeout(1.0)
-            rc=s.connect_ex(("127.0.0.1",7233))
-            s.close()
-            print({"temporal_port_connect_ex":rc,"expected_nonzero":True})
-            if rc == 0:
-                raise SystemExit("unexpected Temporal service available")
-            PY
+            python -c 'import socket; s=socket.socket(); s.settimeout(1.0); rc=s.connect_ex(("127.0.0.1",7233)); s.close(); print({"temporal_port_connect_ex":rc,"expected_nonzero":True}); assert rc != 0, "unexpected Temporal service available"'
             exit 42
           fi
 

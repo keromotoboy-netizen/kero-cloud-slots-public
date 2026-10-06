@@ -1,11 +1,17 @@
 {
-  "generated_at": "2026-10-06T22:07:59.769Z",
+  "generated_at": "2026-10-06T22:12:19.648Z",
   "items": [
     {
       "id": "2026-10-07-faq-coleta-urgente",
       "kind": "faq",
       "format": "story",
       "png": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-faq-coleta-urgente.png"
+    },
+    {
+      "id": "2026-10-07-gbp-acompanhamento-humano",
+      "kind": "faq",
+      "format": "square",
+      "png": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-gbp-acompanhamento-humano.png"
     },
     {
       "id": "2026-10-07-reel-entrega-sem-atraso",

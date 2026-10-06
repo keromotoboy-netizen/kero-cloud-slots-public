@@ -154,13 +154,7 @@ jobs:
               exit "$GUARD_RC"
             fi
             cp client-result.json proof-result.json
-            python - <<'PY'
-            import json
-            r=json.loads(open("proof-result.json").read().strip().splitlines()[-1])
-            print(json.dumps(r,indent=2,sort_keys=True))
-            if not r.get("proof_passed"):
-                raise SystemExit("authority guard proof failed")
-            PY
+            python -c 'import json; r=json.loads(open("proof-result.json").read().strip().splitlines()[-1]); print(json.dumps(r,indent=2,sort_keys=True)); assert r.get("proof_passed"), "authority guard proof failed"'
             exit 0
           fi
 

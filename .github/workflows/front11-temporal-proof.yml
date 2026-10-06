@@ -35,9 +35,10 @@ jobs:
           if not r.get("ok") or not r.get("job"):
               raise SystemExit("No official Front 11 parent job claimed: "+json.dumps(r))
           j=r["job"]
+          expected="front-11:temporal:durable-recovery:v1"
           with open(os.environ["GITHUB_OUTPUT"],"a") as f:
               f.write("job_id="+str(j["id"])+"\n")
-              f.write("request_key="+str(j.get("request_key") or "")+"\n")
+              f.write("request_key="+expected+"\n")
           print(json.dumps({"claimed":True,"id":j["id"],"request_key":j.get("request_key"),"attempts":j.get("attempts")}))
           PY
 
@@ -104,7 +105,12 @@ jobs:
 
           "$TEMPORAL_BIN" server start-dev --ip 127.0.0.1 --port 7233 --ui-port 8233 > temporal-server.log 2>&1 &
           TPID=$!
-          trap 'kill $TPID 2>/dev/null || true; kill ${W1:-0} ${W2:-0} ${CPID:-0} 2>/dev/null || true' EXIT
+          cleanup() {
+            for p in "${TPID:-}" "${W1:-}" "${W2:-}" "${CPID:-}"; do
+              if [[ "$p" =~ ^[1-9][0-9]*$ ]]; then kill "$p" 2>/dev/null || true; fi
+            done
+          }
+          trap cleanup EXIT
 
           READY=0
           for i in $(seq 1 60); do

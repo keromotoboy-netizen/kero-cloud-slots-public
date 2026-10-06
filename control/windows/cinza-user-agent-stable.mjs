@@ -163,6 +163,20 @@ async function actionPrivilegedTaskRun(){
   return await ps(script,20_000);
 }
 
+async function actionPrivilegedDiagnostics(){
+  const script="$ErrorActionPreference='SilentlyContinue';"+
+  "$n='Kero Admin Worker Privileged';"+
+  "$t=Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue;"+
+  "$i=Get-ScheduledTaskInfo -TaskName $n -ErrorAction SilentlyContinue;"+
+  "$procs=@(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -match 'Start-AdminKero-Privileged|admin-worker\\.mjs|provider-gateway\\.mjs'}|Select-Object ProcessId,ParentProcessId,Name,CreationDate,CommandLine);"+
+  "$ids=@($procs|ForEach-Object{$_.ProcessId});"+
+  "$listeners=@();if($ids.Count -gt 0){$listeners=@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue|Where-Object{$ids -contains $_.OwningProcess}|Select-Object LocalAddress,LocalPort,OwningProcess)};"+
+  "$base='C:\\Users\\ailla\\KeroCoordenacao\\admin-kero';"+
+  "$meta=@(Get-ChildItem $base -File -ErrorAction SilentlyContinue|Where-Object{$_.Name -match 'status|health|capabil|provider|log'}|Select-Object Name,Length,LastWriteTime);"+
+  "[pscustomobject]@{task_state=if($t){$t.State.ToString()}else{'Missing'};last_run=if($i){$i.LastRunTime}else{$null};last_result=if($i){$i.LastTaskResult}else{$null};processes=$procs;listeners=$listeners;metadata_files=$meta}|ConvertTo-Json -Compress -Depth 7";
+  return await ps(script,30_000);
+}
+
 async function actionAgentProcesses(){
   const script="$me='"+process.pid+"';"+
   "$x=@(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -match 'cinza-user-agent.mjs'}|Select-Object ProcessId,ParentProcessId,CreationDate,CommandLine);"+
@@ -228,6 +242,7 @@ const ACTIONS={
   'cinza.privileged.task.status':{risk:1,fn:actionPrivilegedTaskStatus},
   'cinza.privileged.files.status':{risk:1,fn:actionPrivilegedFilesStatus},
   'cinza.privileged.task.run':{risk:2,fn:actionPrivilegedTaskRun},
+  'cinza.privileged.diagnostics':{risk:1,fn:actionPrivilegedDiagnostics},
   'cinza.agent.processes':{risk:1,fn:actionAgentProcesses},
   'cinza.privileged.script.read':{risk:1,fn:actionPrivilegedScriptRead},
   'cinza.privileged.worker.read':{risk:1,fn:actionPrivilegedWorkerRead},

@@ -1,0 +1,11 @@
+{
+  "id": "kero-20261005-2310-cinza-update-v341",
+  "target": "cinza",
+  "action": "cinza.agent.update",
+  "params": {
+    "commit": "52d0dd4f4264fbe76fbaf5123ee07b78f7b7c57f",
+    "sha256": "1fc3d355356a11fb62b47bb3b48d4cb9d66ac8aa4d8628a9415efb554c73cc11"
+  },
+  "risk": 2,
+  "expires_at": "2026-10-06T04:30:00Z"
+}

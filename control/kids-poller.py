@@ -14,7 +14,7 @@ RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 SUPABASE_URL = "https://noqdjfuqaqlicugbqihv.supabase.co"
 SUPABASE_KEY = "sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.20-preto-upgrade-read"
+CONTROL_VERSION = "2026.10.05.21-s24-diagnostics"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -194,6 +194,26 @@ def s24_agent_task(op,data="",timeout=12):
             return {"http":r.status,"body":body}
     except Exception as e:
         return {"error":type(e).__name__+":"+str(e)[:500]}
+
+def action_s24_agent_process_snapshot(params):
+    return s24_agent_task("process_snapshot")
+
+def action_s24_ports(params):
+    out={
+      "ssh_8022":tcp(PHONE,8022),
+      "api_8766":tcp(PHONE,8766),
+      "agent_8770":tcp(PHONE,8770)
+    }
+    if out["api_8766"]:
+        for path in ("/health","/"):
+            try:
+                with urllib.request.urlopen("http://"+PHONE+":8766"+path,timeout=3) as r:
+                    raw=r.read(8192).decode("utf-8",errors="replace")
+                    out["api_probe"]={"path":path,"status":r.status,"body":raw[:4000]}
+                    break
+            except Exception as e:
+                out.setdefault("api_errors",[]).append(type(e).__name__+":"+str(e)[:180])
+    return out
 
 def action_s24_agent_queue_status(params):
     return s24_agent_task("queue_status")
@@ -501,6 +521,8 @@ ACTIONS = {
   "kids.version": (1, action_kids_version),
   "status.global": (1, action_status_global),
   "s24.health": (1, action_s24_health),
+  "s24.agent.process_snapshot": (1, action_s24_agent_process_snapshot),
+  "s24.ports": (1, action_s24_ports),
   "s24.agent.queue_status": (1, action_s24_agent_queue_status),
   "s24.agent.sshd_status": (1, action_s24_agent_sshd_status),
   "s24.agent.start_sshd": (2, action_s24_agent_start_sshd),

@@ -1,0 +1,51 @@
+name: Kero Marketing Renderer
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'marketing/briefs/**'
+      - 'marketing/render.mjs'
+      - '.github/workflows/kero-marketing-render.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install renderer dependency
+        run: npm install --no-save sharp@0.33.5
+
+      - name: Verify ffmpeg
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -n 1
+
+      - name: Render PUBLIC_SAFE marketing assets
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node marketing/render.mjs
+
+      - name: Commit generated assets
+        run: |
+          git config user.name "kero-marketing-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add marketing/generated
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+          else
+            git commit -m "Render marketing assets"
+            git push
+          fi

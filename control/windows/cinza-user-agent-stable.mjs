@@ -17,7 +17,7 @@ const SUPABASE='https://noqdjfuqaqlicugbqihv.supabase.co';
 const APIKEY='sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr';
 const RESULT='https://kero-public-slot.onrender.com/control/result';
 const DEVICE='cinza';
-const VERSION='2026.10.06.3';
+const VERSION='2026.10.06.3.1';
 const POLL_MS=60_000;
 const PS='C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
 const REPO='keromotoboy-netizen/kero-cloud-slots-public';
@@ -126,7 +126,7 @@ async function actionAgentUpdate(p){
   const body=Buffer.from(await r.arrayBuffer());
   const got=crypto.createHash('sha256').update(body).digest('hex');
   if(got!==expected) throw new Error('update_hash_mismatch');
-  const tmp=SELF+'.new';fs.writeFileSync(tmp,body);
+  const tmp=SELF+'.new.mjs';fs.writeFileSync(tmp,body);
   await execFileP(process.execPath,['--check',tmp],{timeout:15_000,windowsHide:true});
   if(fs.existsSync(SELF+'.bak')) fs.unlinkSync(SELF+'.bak');
   if(fs.existsSync(SELF)) fs.renameSync(SELF,SELF+'.bak');

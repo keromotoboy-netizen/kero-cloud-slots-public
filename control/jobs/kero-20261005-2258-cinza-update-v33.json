@@ -1,0 +1,11 @@
+{
+  "id": "kero-20261005-2258-cinza-update-v33",
+  "target": "cinza",
+  "action": "cinza.agent.update",
+  "params": {
+    "commit": "15f92a727153b1ea87331049c4fc2692167958fd",
+    "sha256": "cf968e06e1d398e7c67b40e101985da5a9db54e449bfe46fc26447954eeead60"
+  },
+  "risk": 2,
+  "expires_at": "2026-10-06T04:00:00Z"
+}

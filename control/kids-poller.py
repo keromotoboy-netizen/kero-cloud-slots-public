@@ -8,12 +8,13 @@ META = BASE/"poll-meta.json"
 KEY = BASE/"result-ed25519.pem"
 REPO = "keromotoboy-netizen/kero-cloud-slots-public"
 JOBS_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs.json?ref=main"
+JOBS_DIR_API = f"https://api.github.com/repos/{REPO}/contents/control/jobs?ref=main"
 SELF_API = f"https://api.github.com/repos/{REPO}/contents/control/kids-poller.py?ref=main"
 RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 SUPABASE_URL = "https://noqdjfuqaqlicugbqihv.supabase.co"
 SUPABASE_KEY = "sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.18-probes-fixed"
+CONTROL_VERSION = "2026.10.05.19-dual-queue"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -43,14 +44,17 @@ def atomic_json(path,obj):
     tmp.write_text(json.dumps(obj,separators=(",",":")))
     os.replace(tmp,path)
 
-def github_content(url):
+def github_json(url):
     req=urllib.request.Request(url,headers={
-      "User-Agent":"kero-kids-control/2",
+      "User-Agent":"kero-kids-control/5",
       "Accept":"application/vnd.github+json",
       "Cache-Control":"no-cache"
     })
     with urllib.request.urlopen(req,timeout=12) as r:
-        obj=json.loads(r.read())
+        return json.loads(r.read())
+
+def github_content(url):
+    obj=github_json(url)
     raw=base64.b64decode(obj["content"])
     return raw, obj.get("sha","")
 
@@ -84,26 +88,61 @@ def fetch_jobs(meta, seen):
     t=time.time()
     if t-float(meta.get("jobs_checked",0)) < MIN_FETCH_SECONDS:
         return None,meta
-    qs=(
-      "select=id,target,action,params,risk,expires_at,created_at"
-      "&target=in.(kids,any)"
-      "&order=created_at.asc"
-      "&limit=100"
-    )
-    url=SUPABASE_URL+"/rest/v1/kero_control_jobs_public?"+qs
-    req=urllib.request.Request(url,headers={
-      "apikey":SUPABASE_KEY,
-      "Accept":"application/json",
-      "User-Agent":"kero-kids-control/4",
-      "Cache-Control":"no-cache"
-    })
-    with urllib.request.urlopen(req,timeout=12) as r:
-        jobs=json.loads(r.read())
-    if not isinstance(jobs,list):
-        raise ValueError("invalid_supabase_jobs")
-    jobs=[j for j in jobs if str(j.get("id","")) not in seen]
+    merged={}
+
+    try:
+        qs=(
+          "select=id,target,action,params,risk,expires_at,created_at"
+          "&target=in.(kids,any)"
+          "&enabled=eq.true"
+          "&order=created_at.asc"
+          "&limit=100"
+        )
+        url=SUPABASE_URL+"/rest/v1/kero_control_jobs_public?"+qs
+        req=urllib.request.Request(url,headers={
+          "apikey":SUPABASE_KEY,
+          "Accept":"application/json",
+          "User-Agent":"kero-kids-control/5",
+          "Cache-Control":"no-cache"
+        })
+        with urllib.request.urlopen(req,timeout=12) as r:
+            rows=json.loads(r.read())
+        if not isinstance(rows,list):
+            raise ValueError("invalid_supabase_jobs")
+        for j in rows:
+            jid=str(j.get("id",""))
+            if jid and jid not in seen:
+                merged[jid]=j
+        meta["supabase_ok"]=True
+    except Exception as e:
+        meta["supabase_ok"]=False
+        log("supabase_fetch_error",error=type(e).__name__+":"+str(e)[:180])
+
+    if t-float(meta.get("github_jobs_checked",0)) >= 180:
+        try:
+            listing=github_json(JOBS_DIR_API)
+            if isinstance(listing,list):
+                files=[x for x in listing if x.get("type")=="file" and str(x.get("name","")).endswith(".json")]
+                for item in sorted(files,key=lambda x:x.get("name",""))[-100:]:
+                    jid=str(item.get("name",""))[:-5]
+                    if not jid or jid in seen or jid in merged:
+                        continue
+                    raw,_=github_content(item["url"])
+                    j=json.loads(raw)
+                    if str(j.get("id","")) != jid:
+                        log("github_job_rejected",file=item.get("name"),reason="id_mismatch")
+                        continue
+                    merged[jid]=j
+            meta["github_jobs_ok"]=True
+        except Exception as e:
+            meta["github_jobs_ok"]=False
+            log("github_jobs_fetch_error",error=type(e).__name__+":"+str(e)[:180])
+        meta["github_jobs_checked"]=t
+
+    jobs=list(merged.values())
+    jobs.sort(key=lambda j:(str(j.get("created_at","")),str(j.get("id",""))))
     meta["jobs_checked"]=t
-    meta["jobs_source"]="supabase"
+    meta["jobs_source"]="supabase+github"
     atomic_json(META,meta)
     return jobs,meta
 

@@ -1,0 +1,59 @@
+name: Kero Control Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "control/jobs/*.json"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: kero-control-sync-main
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-slim
+    timeout-minutes: 3
+    steps:
+      - name: Sync changed control jobs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          BRAIN_WORKER_URL: https://noqdjfuqaqlicugbqihv.supabase.co/functions/v1/kero-brain-github-worker
+        run: |
+          set -euo pipefail
+
+          OIDC_JSON=$(curl -fsS             -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=kero-brain-worker")
+          OIDC=$(printf '%s' "$OIDC_JSON" | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("value"); print(x["value"],end="")')
+
+          if [[ "$BEFORE" =~ ^0+$ ]]; then
+            API="https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$AFTER"
+          else
+            API="https://api.github.com/repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER"
+          fi
+
+          curl -fsS             -H "Authorization: Bearer $GH_TOKEN"             -H "Accept: application/vnd.github+json"             "$API" > changed.json
+
+          mapfile -t PATHS < <(
+            jq -r '.files[]?.filename // empty' changed.json |
+            grep -E '^control/jobs/kero-[A-Za-z0-9._:-]{4,120}\.json$' |
+            sort -u
+          )
+
+          if [ "${#PATHS[@]}" -eq 0 ]; then
+            echo "No control jobs to sync."
+            exit 0
+          fi
+
+          for path in "${PATHS[@]}"; do
+            BODY=$(jq -nc --arg path "$path" '{action:"control_sync",path:$path}')
+            RESPONSE=$(curl -fsS               -H "Authorization: Bearer $OIDC"               -H "Content-Type: application/json"               --data "$BODY"               "$BRAIN_WORKER_URL")
+            echo "$RESPONSE" | jq -c '{ok,id,inserted,error}'
+            echo "$RESPONSE" | jq -e '.ok == true' >/dev/null
+          done

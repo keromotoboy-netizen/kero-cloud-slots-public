@@ -14,14 +14,14 @@ RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 SUPABASE_URL = "https://noqdjfuqaqlicugbqihv.supabase.co"
 SUPABASE_KEY = "sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.19-dual-queue"
+CONTROL_VERSION = "2026.10.05.20-preto-upgrade-read"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
 PS = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 SERVICE_ALLOW = {"sshd","Tailscale","KeroDeviceAgent","KeroWatchdog"}
 MIN_FETCH_SECONDS = 60
-SELF_UPDATE_SECONDS = 600
+SELF_UPDATE_SECONDS = 120
 
 BASE.mkdir(parents=True, exist_ok=True)
 
@@ -319,6 +319,21 @@ def action_preto_cinza_smb_status(params):
     s="$h='100.121.228.117';$b=[char]92;$pub=Test-Path ($b+$b+$h+$b+'Users'+$b+'Public');$adm=Test-Path ($b+$b+$h+$b+'C$');[pscustomobject]@{host=$h;public_share=$pub;admin_share=$adm}|ConvertTo-Json -Compress"
     return ssh_preto(s,timeout=20)
 
+def action_preto_upgrade_read(params):
+    name=str(params.get("name",""))
+    allowed={
+      "kero-agent.py",
+      "kero-remote.py",
+      "kero-supervisor.sh",
+      "00-kero-start",
+      "upgrade.sh",
+      "hotfix-local-ai.sh"
+    }
+    if name not in allowed:
+        raise ValueError("upgrade_file_not_allowlisted")
+    s="$n='"+name+"';$p=Join-Path 'C:\\Users\\DELL\\KeroCoordenacao\\mobile-bridge\\upgrade' $n;if(-not(Test-Path $p)){throw 'file_missing'};$x=Get-Content -Raw -Path $p;if($x.Length -gt 60000){throw 'file_too_large'};[pscustomobject]@{name=$n;content=$x;sha256=(Get-FileHash -Algorithm SHA256 -Path $p).Hash.ToLower()}|ConvertTo-Json -Compress"
+    return ssh_preto(s,timeout=20)
+
 def action_preto_status(params):
     s=r"""$os=Get-CimInstance Win32_OperatingSystem;$cs=Get-CimInstance Win32_ComputerSystem;$d=Get-PSDrive C;[pscustomobject]@{host=$env:COMPUTERNAME;user=$env:USERNAME;uptime_s=[int]((Get-Date)-$os.LastBootUpTime).TotalSeconds;ram_total_gb=[math]::Round($cs.TotalPhysicalMemory/1GB,1);ram_free_gb=[math]::Round($os.FreePhysicalMemory*1KB/1GB,1);c_free_gb=[math]::Round($d.Free/1GB,1);sshd=(Get-Service sshd -ErrorAction SilentlyContinue).Status.ToString();tailscale=(Get-Service Tailscale -ErrorAction SilentlyContinue).Status.ToString()}|ConvertTo-Json -Compress"""
     return ssh_preto(s)
@@ -497,6 +512,7 @@ ACTIONS = {
   "s24.ssh.rescue": (2, action_s24_ssh_rescue),
   "cinza.connectivity": (1, action_cinza_connectivity),
   "preto.status": (1, action_preto_status),
+  "preto.upgrade.read": (1, action_preto_upgrade_read),
   "preto.s24.adb.status": (1, action_preto_s24_adb_status),
   "preto.s24.ssh.rescue": (2, action_preto_s24_ssh_rescue),
   "preto.admin.status": (1, action_preto_admin_status),

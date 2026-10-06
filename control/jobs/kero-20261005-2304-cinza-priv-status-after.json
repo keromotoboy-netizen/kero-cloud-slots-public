@@ -1,0 +1,8 @@
+{
+  "id": "kero-20261005-2304-cinza-priv-status-after",
+  "target": "cinza",
+  "action": "cinza.privileged.task.status",
+  "params": {},
+  "risk": 1,
+  "expires_at": "2026-10-06T04:20:00Z"
+}

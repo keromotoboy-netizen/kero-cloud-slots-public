@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import base64, json, os, pathlib, socket, subprocess, sys, tempfile, time, urllib.request
+import base64, hashlib, json, os, pathlib, re, socket, subprocess, sys, tempfile, time, urllib.request
 from datetime import datetime, timezone
 
 BASE = pathlib.Path.home()/".config"/"kero-control"
@@ -14,7 +14,7 @@ RESULT_URL = "https://kero-public-slot.onrender.com/control/result"
 SUPABASE_URL = "https://noqdjfuqaqlicugbqihv.supabase.co"
 SUPABASE_KEY = "sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr"
 DEVICE = "kids"
-CONTROL_VERSION = "2026.10.05.21-s24-diagnostics"
+CONTROL_VERSION = "2026.10.05.22-mobile-api-map"
 PRETO = "100.101.3.28"
 CINZA = "100.121.228.117"
 PHONE = "100.87.82.13"
@@ -264,6 +264,35 @@ def action_kids_read_control_source(params):
     if len(data)>30000:
         raise ValueError("source_too_large")
     return {"name":name,"content":data}
+
+def action_kids_mobile_api_map(params):
+    p=pathlib.Path("/home/victor/kero-mobile/kero-api.py")
+    if not p.is_file():
+        return {"exists":False}
+    raw=p.read_bytes()
+    if len(raw)>200000:
+        raise ValueError("source_too_large")
+    s=raw.decode("utf-8",errors="replace")
+    routes=set()
+    for pat in (
+      r"self\.path\s*==\s*['\"]([^'\"]+)['\"]",
+      r"self\.path\.startswith\(\s*['\"]([^'\"]+)['\"]",
+      r"url\.path\s*==\s*['\"]([^'\"]+)['\"]"
+    ):
+        routes.update(re.findall(pat,s))
+    methods=sorted(set(re.findall(r"def\s+(do_(?:GET|POST|PUT|DELETE|PATCH|OPTIONS))\s*\(",s)))
+    ops=sorted(set(re.findall(r"(?:op|action)\s*==\s*['\"]([A-Za-z0-9._:-]{1,80})['\"]",s)))
+    return {
+      "exists":True,
+      "bytes":len(raw),
+      "sha256":hashlib.sha256(raw).hexdigest(),
+      "routes":sorted(routes)[:100],
+      "methods":methods,
+      "ops":ops[:100],
+      "has_subprocess":("subprocess" in s),
+      "has_shell_true":bool(re.search(r"shell\s*=\s*True",s)),
+      "has_token_auth":("Authorization" in s or "X-Kero-Token" in s or "hmac" in s)
+    }
 
 def ssh_s24(command, timeout=20):
     p=subprocess.run(
@@ -519,6 +548,7 @@ $proc=Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction
 
 ACTIONS = {
   "kids.version": (1, action_kids_version),
+  "kids.mobile_api.map": (1, action_kids_mobile_api_map),
   "status.global": (1, action_status_global),
   "s24.health": (1, action_s24_health),
   "s24.agent.process_snapshot": (1, action_s24_agent_process_snapshot),

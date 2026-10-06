@@ -35,10 +35,13 @@ jobs:
           if not r.get("ok") or not r.get("job"):
               raise SystemExit("No official Front 11 parent job claimed: "+json.dumps(r))
           j=r["job"]
-          expected="front-11:temporal:durable-recovery:v1"
+          payload=j.get("payload") or {}
+          expected=payload.get("request_key_echo") or "front-11:temporal:durable-recovery:v1"
+          mode=payload.get("proof") or "temporal-worker-crash-recovery"
           with open(os.environ["GITHUB_OUTPUT"],"a") as f:
               f.write("job_id="+str(j["id"])+"\n")
-              f.write("request_key="+expected+"\n")
+              f.write("request_key="+str(expected)+"\n")
+              f.write("proof_mode="+str(mode)+"\n")
           print(json.dumps({"claimed":True,"id":j["id"],"request_key":j.get("request_key"),"attempts":j.get("attempts")}))
           PY
 
@@ -80,12 +83,28 @@ jobs:
         env:
           JOB_ID: ${{ steps.claim.outputs.job_id }}
           REQUEST_KEY: ${{ steps.claim.outputs.request_key }}
+          PROOF_MODE: ${{ steps.claim.outputs.proof_mode }}
           KERO_TEMPORAL_STATE: front11-state
         run: |
           set -uo pipefail
           START_EPOCH=$(date +%s)
           rm -rf front11-state
           mkdir -p front11-state
+
+          if [ "$PROOF_MODE" = "temporal-tool-down" ]; then
+            echo "EXPECTED_TEMPORAL_UNAVAILABLE: Temporal Service intentionally not started; Central must retain authority and place parent job into fallback." > client.err
+            python - <<'PY'
+import socket, sys
+s=socket.socket()
+s.settimeout(1.0)
+rc=s.connect_ex(("127.0.0.1",7233))
+s.close()
+print({"temporal_port_connect_ex":rc,"expected_nonzero":True})
+if rc == 0:
+    raise SystemExit("unexpected Temporal service available")
+PY
+            exit 42
+          fi
 
           mem_kb() { awk '/MemAvailable:/{print $2}' /proc/meminfo; }
           net_bytes() { awk -F'[: ]+' 'NR>2 {rx+=$3; tx+=$11} END{print rx+tx}' /proc/net/dev; }

@@ -1,0 +1,42 @@
+name: Validate Standard Public Runners
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/validate-standard-runners.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: ${{ matrix.class }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - class: linux-x64
+            os: ubuntu-24.04
+          - class: linux-arm64
+            os: ubuntu-24.04-arm
+          - class: windows-x64
+            os: windows-2025
+          - class: windows-arm64
+            os: windows-11-arm
+          - class: macos-intel
+            os: macos-15-intel
+          - class: macos-arm64
+            os: macos-15
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 3
+    steps:
+      - name: Validate runtime
+        shell: bash
+        run: |
+          echo "class=${{ matrix.class }}"
+          echo "runner_os=$RUNNER_OS"
+          uname -a || true
+          node -e "console.log(JSON.stringify({platform:process.platform,arch:process.arch,node:process.version}))"
+          python --version || python3 --version

@@ -18,7 +18,7 @@ const SUPABASE='https://noqdjfuqaqlicugbqihv.supabase.co';
 const APIKEY='sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr';
 const RESULT='https://kero-public-slot.onrender.com/control/result';
 const DEVICE='cinza';
-const VERSION='2026.10.06.3.2';
+const VERSION='2026.10.06.3.3';
 const POLL_MS=60_000;
 const PS='C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
 const REPO='keromotoboy-netizen/kero-cloud-slots-public';
@@ -146,6 +146,24 @@ async function actionAgentProcesses(){
   return await ps(script,20_000);
 }
 
+
+async function actionPrivilegedScriptRead(){
+  const full=path.join(HOME,'KeroCoordenacao','admin-kero','Start-AdminKero-Privileged.ps1');
+  if(!fs.existsSync(full)) return {exists:false,path:full};
+  const st=fs.statSync(full);
+  if(st.size>200_000) throw new Error('script_too_large');
+  const content=fs.readFileSync(full,'utf8');
+  return {exists:true,path:full,size:st.size,sha256:crypto.createHash('sha256').update(content).digest('hex'),content};
+}
+async function actionCleanupLegacyAgents(){
+  const me=process.pid;
+  const script="$me="+me+";"+
+  "$xs=@(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -match 'cinza-user-agent.mjs' -and $_.ProcessId -ne $me});"+
+  "$k=@();foreach($x in $xs){try{Stop-Process -Id $x.ProcessId -Force -ErrorAction Stop;$k+=$x.ProcessId}catch{}};"+
+  "[pscustomobject]@{current_pid=$me;killed=@($k);remaining=@(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -match 'cinza-user-agent.mjs'}|Select-Object ProcessId,CommandLine)}|ConvertTo-Json -Compress -Depth 5";
+  return await ps(script,20_000);
+}
+
 async function actionAgentUpdate(p){
   const commit=String(p?.commit||'').toLowerCase();
   const expected=String(p?.sha256||'').toLowerCase();
@@ -176,6 +194,8 @@ const ACTIONS={
   'cinza.persistence.status':{risk:1,fn:actionPersistenceStatus},
   'cinza.privileged.task.status':{risk:1,fn:actionPrivilegedTaskStatus},
   'cinza.agent.processes':{risk:1,fn:actionAgentProcesses},
+  'cinza.privileged.script.read':{risk:1,fn:actionPrivilegedScriptRead},
+  'cinza.agent.cleanup_legacy':{risk:2,fn:actionCleanupLegacyAgents},
   'cinza.file.list':{risk:1,fn:actionFileList},
   'cinza.file.hash':{risk:1,fn:actionFileHash},
   'cinza.file.move':{risk:2,fn:actionFileMove},

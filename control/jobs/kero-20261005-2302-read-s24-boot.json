@@ -1,0 +1,10 @@
+{
+  "id": "kero-20261005-2302-read-s24-boot",
+  "target": "kids",
+  "action": "preto.upgrade.read",
+  "params": {
+    "name": "00-kero-start"
+  },
+  "risk": 1,
+  "expires_at": "2026-10-06T04:15:00Z"
+}

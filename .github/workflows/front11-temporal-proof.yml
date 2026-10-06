@@ -138,6 +138,32 @@ jobs:
           done
           [ "$READY" = "1" ] || { cat temporal-server.log; exit 21; }
 
+          if [ "$PROOF_MODE" = "central-authority-outage-sim" ]; then
+            python front11/temporal_proof.py worker > worker1.log 2>&1 &
+            W1=$!
+            sleep 2
+            timeout 120s python front11/temporal_proof.py guard-client \
+              --parent-job-id "$JOB_ID" \
+              --request-key "$REQUEST_KEY" > client-result.json 2> client.err
+            GUARD_RC=$?
+            kill "$W1" 2>/dev/null || true
+            wait "$W1" 2>/dev/null || true
+            W1=0
+            if [ "$GUARD_RC" -ne 0 ]; then
+              cat client.err
+              exit "$GUARD_RC"
+            fi
+            cp client-result.json proof-result.json
+            python - <<'PY'
+            import json
+            r=json.loads(open("proof-result.json").read().strip().splitlines()[-1])
+            print(json.dumps(r,indent=2,sort_keys=True))
+            if not r.get("proof_passed"):
+                raise SystemExit("authority guard proof failed")
+            PY
+            exit 0
+          fi
+
           python front11/temporal_proof.py worker > worker1.log 2>&1 &
           W1=$!
           sleep 2

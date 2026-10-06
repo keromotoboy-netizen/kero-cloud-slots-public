@@ -40,3 +40,5 @@ jobs:
           uname -a || true
           node -e "console.log(JSON.stringify({platform:process.platform,arch:process.arch,node:process.version}))"
           python --version || python3 --version
+
+# validation trigger 2026-10-05

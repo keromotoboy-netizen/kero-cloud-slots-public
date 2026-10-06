@@ -1,0 +1,158 @@
+import argparse
+import asyncio
+import json
+import os
+from datetime import timedelta
+from pathlib import Path
+
+from temporalio import activity, workflow
+from temporalio.client import Client
+from temporalio.common import RetryPolicy
+from temporalio.worker import Worker
+
+STATE = Path(os.environ.get("KERO_TEMPORAL_STATE", "front11-state"))
+TASK_QUEUE = "kero-front11-durable-proof"
+
+
+def bump(name: str) -> int:
+    STATE.mkdir(parents=True, exist_ok=True)
+    p = STATE / name
+    try:
+        n = int(p.read_text().strip() or "0")
+    except Exception:
+        n = 0
+    n += 1
+    p.write_text(str(n))
+    return n
+
+
+@activity.defn
+async def step_one(parent_job_id: str) -> dict:
+    n = bump("step1.count")
+    (STATE / "step1.done").write_text(parent_job_id)
+    return {"step": 1, "attempt_count": n, "parent_job_id": parent_job_id}
+
+
+@activity.defn
+async def flaky_step(parent_job_id: str) -> dict:
+    n = bump("flaky.count")
+    if n == 1:
+        raise RuntimeError("planned-first-attempt-failure")
+    return {"step": 2, "attempt_count": n, "parent_job_id": parent_job_id}
+
+
+@activity.defn
+async def step_three(parent_job_id: str) -> dict:
+    n = bump("step3.count")
+    return {"step": 3, "attempt_count": n, "parent_job_id": parent_job_id}
+
+
+@workflow.defn
+class DurableKeroProof:
+    @workflow.run
+    async def run(self, payload: dict) -> dict:
+        parent_job_id = payload["parent_job_id"]
+        request_key = payload["request_key"]
+
+        s1 = await workflow.execute_activity(
+            step_one,
+            parent_job_id,
+            start_to_close_timeout=timedelta(seconds=20),
+            retry_policy=RetryPolicy(maximum_attempts=1),
+        )
+
+        # Gives the harness a deterministic window to crash the first Worker.
+        await workflow.sleep(timedelta(seconds=12))
+
+        s2 = await workflow.execute_activity(
+            flaky_step,
+            parent_job_id,
+            start_to_close_timeout=timedelta(seconds=20),
+            retry_policy=RetryPolicy(
+                initial_interval=timedelta(seconds=1),
+                maximum_interval=timedelta(seconds=2),
+                maximum_attempts=3,
+            ),
+        )
+
+        s3 = await workflow.execute_activity(
+            step_three,
+            parent_job_id,
+            start_to_close_timeout=timedelta(seconds=20),
+            retry_policy=RetryPolicy(maximum_attempts=1),
+        )
+
+        return {
+            "parent_job_id": parent_job_id,
+            "request_key": request_key,
+            "step1": s1,
+            "step2": s2,
+            "step3": s3,
+        }
+
+
+async def run_worker() -> None:
+    client = await Client.connect("127.0.0.1:7233")
+    worker = Worker(
+        client,
+        task_queue=TASK_QUEUE,
+        workflows=[DurableKeroProof],
+        activities=[step_one, flaky_step, step_three],
+    )
+    await worker.run()
+
+
+async def run_client(parent_job_id: str, request_key: str) -> None:
+    client = await Client.connect("127.0.0.1:7233")
+    workflow_id = f"kero-front11-{parent_job_id}"
+    handle = await client.start_workflow(
+        DurableKeroProof.run,
+        {"parent_job_id": parent_job_id, "request_key": request_key},
+        id=workflow_id,
+        task_queue=TASK_QUEUE,
+        execution_timeout=timedelta(minutes=4),
+    )
+    result = await handle.result()
+
+    def read_count(name: str) -> int:
+        try:
+            return int((STATE / name).read_text().strip())
+        except Exception:
+            return 0
+
+    summary = {
+        "workflow_id": workflow_id,
+        "parent_job_id": parent_job_id,
+        "request_key": request_key,
+        "workflow_result": result,
+        "step1_count": read_count("step1.count"),
+        "flaky_count": read_count("flaky.count"),
+        "step3_count": read_count("step3.count"),
+    }
+    summary["proof_passed"] = (
+        summary["step1_count"] == 1
+        and summary["flaky_count"] == 2
+        and summary["step3_count"] == 1
+        and result.get("parent_job_id") == parent_job_id
+        and result.get("request_key") == request_key
+    )
+    print(json.dumps(summary, sort_keys=True))
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("mode", choices=["worker", "client"])
+    ap.add_argument("--parent-job-id")
+    ap.add_argument("--request-key")
+    args = ap.parse_args()
+
+    if args.mode == "worker":
+        asyncio.run(run_worker())
+    else:
+        if not args.parent_job_id or not args.request_key:
+            raise SystemExit("client requires --parent-job-id and --request-key")
+        asyncio.run(run_client(args.parent_job_id, args.request_key))
+
+
+if __name__ == "__main__":
+    main()

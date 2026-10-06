@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import net from 'node:net';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -17,11 +18,20 @@ const SUPABASE='https://noqdjfuqaqlicugbqihv.supabase.co';
 const APIKEY='sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr';
 const RESULT='https://kero-public-slot.onrender.com/control/result';
 const DEVICE='cinza';
-const VERSION='2026.10.06.3.1';
+const VERSION='2026.10.06.3.2';
 const POLL_MS=60_000;
 const PS='C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
 const REPO='keromotoboy-netizen/kero-cloud-slots-public';
 let restartRequested=false;
+const SINGLETON_PORT=18771;
+const singleton=net.createServer();
+await new Promise((resolve,reject)=>{
+  singleton.once('error',e=>{
+    if(e?.code==='EADDRINUSE') process.exit(0);
+    else reject(e);
+  });
+  singleton.listen(SINGLETON_PORT,'127.0.0.1',resolve);
+});
 
 fs.mkdirSync(BASE,{recursive:true});
 function log(event,detail={}) {
@@ -116,6 +126,26 @@ async function actionPersistenceStatus(){
   return await ps(script,30_000);
 }
 
+
+async function actionPrivilegedTaskStatus(){
+  const script="$ErrorActionPreference='SilentlyContinue';"+
+  "$n='Kero Admin Worker Privileged';"+
+  "$t=Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue;"+
+  "$i=Get-ScheduledTaskInfo -TaskName $n -ErrorAction SilentlyContinue;"+
+  "if(!$t){[pscustomobject]@{exists=$false}|ConvertTo-Json -Compress;exit};"+
+  "$acts=@($t.Actions|ForEach-Object{[pscustomobject]@{execute=$_.Execute;arguments=$_.Arguments;working_directory=$_.WorkingDirectory}});"+
+  "$pr=[pscustomobject]@{user_id=$t.Principal.UserId;logon_type=$t.Principal.LogonType.ToString();run_level=$t.Principal.RunLevel.ToString()};"+
+  "$files=@();foreach($a in $t.Actions){if($a.Execute -and (Test-Path $a.Execute)){$files+=[pscustomobject]@{path=$a.Execute;sha256=(Get-FileHash -Algorithm SHA256 $a.Execute -ErrorAction SilentlyContinue).Hash}}};"+
+  "[pscustomobject]@{exists=$true;state=$t.State.ToString();last_run=$i.LastRunTime;last_result=$i.LastTaskResult;next_run=$i.NextRunTime;principal=$pr;actions=$acts;existing_action_files=$files}|ConvertTo-Json -Compress -Depth 6";
+  return await ps(script,30_000);
+}
+async function actionAgentProcesses(){
+  const script="$me='"+process.pid+"';"+
+  "$x=@(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -match 'cinza-user-agent.mjs'}|Select-Object ProcessId,ParentProcessId,CreationDate,CommandLine);"+
+  "[pscustomobject]@{current_node_pid=[int]$me;agents=$x;count=$x.Count}|ConvertTo-Json -Compress -Depth 5";
+  return await ps(script,20_000);
+}
+
 async function actionAgentUpdate(p){
   const commit=String(p?.commit||'').toLowerCase();
   const expected=String(p?.sha256||'').toLowerCase();
@@ -144,6 +174,8 @@ const ACTIONS={
   'cinza.user.paths':{risk:1,fn:actionUserPaths},
   'cinza.admin.inventory':{risk:1,fn:actionAdminInventory},
   'cinza.persistence.status':{risk:1,fn:actionPersistenceStatus},
+  'cinza.privileged.task.status':{risk:1,fn:actionPrivilegedTaskStatus},
+  'cinza.agent.processes':{risk:1,fn:actionAgentProcesses},
   'cinza.file.list':{risk:1,fn:actionFileList},
   'cinza.file.hash':{risk:1,fn:actionFileHash},
   'cinza.file.move':{risk:2,fn:actionFileMove},

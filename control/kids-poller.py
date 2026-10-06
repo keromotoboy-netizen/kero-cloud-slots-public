@@ -542,14 +542,14 @@ def main():
     meta=load_json(META,{})
     try: meta=maybe_self_update(meta)
     except Exception as e: log("self_update_error",error=type(e).__name__+":"+str(e)[:250])
-    try:
-        jobs,meta=fetch_jobs(meta)
-    except Exception as e:
-        log("fetch_error",error=type(e).__name__+":"+str(e)[:250]); return 1
-    if jobs is None: return 0
     seen=load_json(STATE,{})
     cutoff=time.time()-7*86400
     seen={k:v for k,v in seen.items() if float(v)>cutoff}
+    try:
+        jobs,meta=fetch_jobs(meta,seen)
+    except Exception as e:
+        log("fetch_error",error=type(e).__name__+":"+str(e)[:250]); return 1
+    if jobs is None: return 0
     for job in jobs:
         jid=str(job.get("id",""))
         if not jid or jid in seen: continue

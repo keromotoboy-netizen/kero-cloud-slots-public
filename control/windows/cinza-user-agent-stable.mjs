@@ -139,6 +139,30 @@ async function actionPrivilegedTaskStatus(){
   "[pscustomobject]@{exists=$true;state=$t.State.ToString();last_run=$i.LastRunTime;last_result=$i.LastTaskResult;next_run=$i.NextRunTime;principal=$pr;actions=$acts;existing_action_files=$files}|ConvertTo-Json -Compress -Depth 6";
   return await ps(script,30_000);
 }
+async function actionPrivilegedFilesStatus(){
+  const script="$ErrorActionPreference='SilentlyContinue';"+
+  "$base='C:\\Users\\ailla\\KeroCoordenacao\\admin-kero';"+
+  "$paths=@("+
+    "(Join-Path $base 'Start-AdminKero-Privileged.ps1'),"+
+    "(Join-Path $base 'Install-AdminKero-Privileged.ps1'),"+
+    "(Join-Path $base 'admin-worker.mjs'),"+
+    "(Join-Path $base 'provider-gateway.mjs')"+
+  ");"+
+  "$files=@($paths|ForEach-Object{if(Test-Path $_){$i=Get-Item $_;[pscustomobject]@{path=$i.FullName;exists=$true;size=$i.Length;sha256=(Get-FileHash -Algorithm SHA256 $_).Hash.ToLower()}}else{[pscustomobject]@{path=$_;exists=$false;size=0;sha256=$null}}});"+
+  "[pscustomobject]@{base=$base;files=$files}|ConvertTo-Json -Compress -Depth 5";
+  return await ps(script,20_000);
+}
+async function actionPrivilegedTaskRun(){
+  const script="$ErrorActionPreference='Stop';"+
+  "$n='Kero Admin Worker Privileged';"+
+  "$t=Get-ScheduledTask -TaskName $n -ErrorAction Stop;"+
+  "Start-ScheduledTask -TaskName $n -ErrorAction Stop;Start-Sleep -Seconds 5;"+
+  "$t2=Get-ScheduledTask -TaskName $n -ErrorAction Stop;$i=Get-ScheduledTaskInfo -TaskName $n -ErrorAction SilentlyContinue;"+
+  "$p=@(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -match 'admin-worker\\.mjs'}|Select-Object ProcessId,ParentProcessId,CommandLine);"+
+  "[pscustomobject]@{started=$true;state=$t2.State.ToString();last_result=if($i){$i.LastTaskResult}else{$null};processes=$p}|ConvertTo-Json -Compress -Depth 5";
+  return await ps(script,20_000);
+}
+
 async function actionAgentProcesses(){
   const script="$me='"+process.pid+"';"+
   "$x=@(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -match 'cinza-user-agent.mjs'}|Select-Object ProcessId,ParentProcessId,CreationDate,CommandLine);"+
@@ -193,6 +217,8 @@ const ACTIONS={
   'cinza.admin.inventory':{risk:1,fn:actionAdminInventory},
   'cinza.persistence.status':{risk:1,fn:actionPersistenceStatus},
   'cinza.privileged.task.status':{risk:1,fn:actionPrivilegedTaskStatus},
+  'cinza.privileged.files.status':{risk:1,fn:actionPrivilegedFilesStatus},
+  'cinza.privileged.task.run':{risk:2,fn:actionPrivilegedTaskRun},
   'cinza.agent.processes':{risk:1,fn:actionAgentProcesses},
   'cinza.privileged.script.read':{risk:1,fn:actionPrivilegedScriptRead},
   'cinza.agent.cleanup_legacy':{risk:2,fn:actionCleanupLegacyAgents},

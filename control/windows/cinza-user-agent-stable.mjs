@@ -17,7 +17,7 @@ const SUPABASE='https://noqdjfuqaqlicugbqihv.supabase.co';
 const APIKEY='sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr';
 const RESULT='https://kero-public-slot.onrender.com/control/result';
 const DEVICE='cinza';
-const VERSION='2026.10.05.2';
+const VERSION='2026.10.06.3';
 const POLL_MS=60_000;
 const PS='C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
 const REPO='keromotoboy-netizen/kero-cloud-slots-public';
@@ -93,6 +93,29 @@ async function actionFileMove(p){
   fs.mkdirSync(path.dirname(dst),{recursive:true}); fs.renameSync(src,dst);
   return {moved:true,src_root:p?.src_root,src_path:p?.src_path,dst_root:p?.dst_root,dst_path:p?.dst_path};
 }
+
+async function actionAdminInventory(){
+  const script="$ErrorActionPreference='SilentlyContinue';"+
+  "$id=[Security.Principal.WindowsIdentity]::GetCurrent();"+
+  "$p=New-Object Security.Principal.WindowsPrincipal($id);"+
+  "$isAdmin=$p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);"+
+  "$admins=@();try{$admins=@(Get-LocalGroupMember -Group 'Administrators'|Select-Object Name,ObjectClass,PrincipalSource)}catch{};"+
+  "$tasks=@();try{$tasks=@(Get-ScheduledTask|Where-Object{$_.TaskName -match 'Kero|RDC|Remote|SSH|Tailscale'}|Select-Object TaskName,TaskPath,State)}catch{};"+
+  "$svcs=@(Get-Service|Where-Object{$_.Name -match 'sshd|ssh|tailscale|kero|remote' -or $_.DisplayName -match 'SSH|Tailscale|Kero|Remote'}|Select-Object Name,DisplayName,Status,StartType);"+
+  "$uac=(Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name EnableLUA -ErrorAction SilentlyContinue).EnableLUA;"+
+  "[pscustomobject]@{identity=$id.Name;current_token_admin=$isAdmin;uac_enabled=($uac -eq 1);openssh_server_file=(Test-Path 'C:\\Windows\\System32\\OpenSSH\\sshd.exe');sshd_service=if(Get-Service sshd -ErrorAction SilentlyContinue){(Get-Service sshd).Status.ToString()}else{'Missing'};administrators=$admins;related_tasks=$tasks;related_services=$svcs}|ConvertTo-Json -Compress -Depth 7";
+  return await ps(script,30_000);
+}
+async function actionPersistenceStatus(){
+  const script="$ErrorActionPreference='SilentlyContinue';"+
+  "$base=Join-Path $env:LOCALAPPDATA 'KeroControl';"+
+  "$tasks=@(Get-ScheduledTask|Where-Object{$_.TaskName -match 'Kero|Cinza'}|Select-Object TaskName,TaskPath,State,Actions,Triggers);"+
+  "$run1=(Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -ErrorAction SilentlyContinue).PSObject.Properties|Where-Object{$_.Name -match 'Kero|Cinza'}|Select-Object Name,Value;"+
+  "$procs=Get-CimInstance Win32_Process -ErrorAction SilentlyContinue|Where-Object{$_.CommandLine -match 'cinza-user-agent|KeroControl'}|Select-Object ProcessId,Name,CommandLine;"+
+  "[pscustomobject]@{base=$base;agent_file=(Test-Path (Join-Path $base 'cinza-user-agent.mjs'));tasks=$tasks;run_entries=@($run1);processes=@($procs)}|ConvertTo-Json -Compress -Depth 8";
+  return await ps(script,30_000);
+}
+
 async function actionAgentUpdate(p){
   const commit=String(p?.commit||'').toLowerCase();
   const expected=String(p?.sha256||'').toLowerCase();
@@ -119,6 +142,8 @@ const ACTIONS={
   'cinza.process.stop':{risk:2,fn:actionProcessStop},
   'cinza.tailscale.status':{risk:1,fn:actionTailscale},
   'cinza.user.paths':{risk:1,fn:actionUserPaths},
+  'cinza.admin.inventory':{risk:1,fn:actionAdminInventory},
+  'cinza.persistence.status':{risk:1,fn:actionPersistenceStatus},
   'cinza.file.list':{risk:1,fn:actionFileList},
   'cinza.file.hash':{risk:1,fn:actionFileHash},
   'cinza.file.move':{risk:2,fn:actionFileMove},

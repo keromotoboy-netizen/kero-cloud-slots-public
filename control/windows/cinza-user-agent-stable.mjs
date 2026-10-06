@@ -18,7 +18,7 @@ const SUPABASE='https://noqdjfuqaqlicugbqihv.supabase.co';
 const APIKEY='sb_publishable_sM9x9lsULWy3TAm37NxWUQ_9oNXEoGr';
 const RESULT='https://kero-public-slot.onrender.com/control/result';
 const DEVICE='cinza';
-const VERSION='2026.10.06.3.3';
+const VERSION='2026.10.06.3.4';
 const POLL_MS=60_000;
 const PS='C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
 const REPO='keromotoboy-netizen/kero-cloud-slots-public';
@@ -188,6 +188,26 @@ async function actionCleanupLegacyAgents(){
   return await ps(script,20_000);
 }
 
+
+async function actionPrivilegedWorkerRead(){
+  const full=path.join(HOME,'KeroCoordenacao','admin-kero','admin-worker.mjs');
+  if(!fs.existsSync(full)) return {exists:false,path:full};
+  const st=fs.statSync(full);
+  if(st.size>300_000) throw new Error('worker_too_large');
+  const content=fs.readFileSync(full,'utf8');
+  return {exists:true,path:full,size:st.size,sha256:crypto.createHash('sha256').update(content).digest('hex'),content};
+}
+async function actionPrivilegedTaskRun(){
+  const name='Kero Admin Worker Privileged';
+  const script="$ErrorActionPreference='Stop';"+
+    "$n='"+name+"';"+
+    "$t=Get-ScheduledTask -TaskName $n -ErrorAction Stop;"+
+    "Start-ScheduledTask -TaskName $n;Start-Sleep -Seconds 3;"+
+    "$t2=Get-ScheduledTask -TaskName $n;$i=Get-ScheduledTaskInfo -TaskName $n;"+
+    "[pscustomobject]@{task=$n;state=$t2.State.ToString();last_run=$i.LastRunTime;last_result=$i.LastTaskResult}|ConvertTo-Json -Compress";
+  return await ps(script,20_000);
+}
+
 async function actionAgentUpdate(p){
   const commit=String(p?.commit||'').toLowerCase();
   const expected=String(p?.sha256||'').toLowerCase();
@@ -221,6 +241,8 @@ const ACTIONS={
   'cinza.privileged.task.run':{risk:2,fn:actionPrivilegedTaskRun},
   'cinza.agent.processes':{risk:1,fn:actionAgentProcesses},
   'cinza.privileged.script.read':{risk:1,fn:actionPrivilegedScriptRead},
+  'cinza.privileged.worker.read':{risk:1,fn:actionPrivilegedWorkerRead},
+  'cinza.privileged.task.run':{risk:2,fn:actionPrivilegedTaskRun},
   'cinza.agent.cleanup_legacy':{risk:2,fn:actionCleanupLegacyAgents},
   'cinza.file.list':{risk:1,fn:actionFileList},
   'cinza.file.hash':{risk:1,fn:actionFileHash},

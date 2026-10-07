@@ -3,7 +3,7 @@ import json, os, sys, time, urllib.request, urllib.error
 
 BRAIN_URL=os.environ.get("BRAIN_WORKER_URL","").strip()
 AUD="kero-brain-worker"
-CAPS=["health","sha256","text-stats","json-summary","json-normalize","manifest","lint","unit-test","build-safe"]
+CAPS=["runner-probe","health","sha256","text-stats","json-summary","json-normalize","manifest","lint","unit-test","build-safe"]
 
 def req_json(url, method="GET", headers=None, data=None, timeout=25):
     body=None if data is None else json.dumps(data,separators=(",",":")).encode()

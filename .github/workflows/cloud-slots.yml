@@ -24,7 +24,7 @@ on:
         required: true
         default: linux
         type: choice
-        options: [linux, windows, arm, macos, slim]
+        options: [linux, windows, arm, windows-arm, macos, macos-intel, slim]
   repository_dispatch:
     types: [kero-cloud-task]
 
@@ -61,7 +61,9 @@ jobs:
           case "$RUNNER" in
             windows) LABEL=windows-latest ;;
             arm) LABEL=ubuntu-24.04-arm ;;
+            windows-arm) LABEL=windows-11-arm ;;
             macos) LABEL=macos-latest ;;
+            macos-intel) LABEL=macos-15-intel ;;
             slim) LABEL=ubuntu-slim ;;
             *) LABEL=ubuntu-latest ;;
           esac

@@ -23,6 +23,10 @@ def oidc():
 
 def post_brain(payload):
     if not BRAIN_URL: raise RuntimeError("brain_worker_url_missing")
+    payload=dict(payload)
+    variant=(os.environ.get("KERO_RUNNER_VARIANT") or "").strip()
+    if variant:
+        payload["runner_variant"]=variant
     return req_json(BRAIN_URL,"POST",{
         "Authorization":"Bearer "+oidc(),
         "Content-Type":"application/json",

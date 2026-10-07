@@ -40,6 +40,7 @@ jobs:
       matrix: ${{ steps.m.outputs.matrix }}
       task: ${{ steps.m.outputs.task }}
       runner: ${{ steps.m.outputs.runner }}
+      variant: ${{ steps.m.outputs.variant }}
     steps:
       - id: m
         shell: bash
@@ -60,18 +61,19 @@ jobs:
           case "$SLOTS" in 1|2|4|8|12|16) ;; *) SLOTS=1 ;; esac
           case "$TASK" in queue-worker|site-smoke|runtime-benchmark) ;; *) TASK=queue-worker ;; esac
           case "$RUNNER" in
-            windows) LABEL=windows-latest ;;
-            arm) LABEL=ubuntu-24.04-arm ;;
-            windows-arm) LABEL=windows-11-arm ;;
-            macos) LABEL=macos-latest ;;
-            macos-intel) LABEL=macos-15-intel ;;
-            slim) LABEL=ubuntu-slim ;;
-            *) LABEL=ubuntu-latest ;;
+            windows) LABEL=windows-latest; VARIANT=windows-x64 ;;
+            arm) LABEL=ubuntu-24.04-arm; VARIANT=linux-arm64 ;;
+            windows-arm) LABEL=windows-11-arm; VARIANT=windows-arm64 ;;
+            macos) LABEL=macos-latest; VARIANT=macos-arm64 ;;
+            macos-intel) LABEL=macos-15-intel; VARIANT=macos-intel ;;
+            slim) LABEL=ubuntu-slim; VARIANT=linux-slim ;;
+            *) LABEL=ubuntu-latest; VARIANT=linux-x64 ;;
           esac
           MATRIX=$(seq 1 "$SLOTS" | jq -Rsc 'split("\n")[:-1] | map(tonumber)')
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
           echo "task=$TASK" >> "$GITHUB_OUTPUT"
           echo "runner=$LABEL" >> "$GITHUB_OUTPUT"
+          echo "variant=$VARIANT" >> "$GITHUB_OUTPUT"
 
   slot:
     needs: prepare
@@ -82,6 +84,8 @@ jobs:
       max-parallel: 16
     runs-on: ${{ needs.prepare.outputs.runner }}
     timeout-minutes: 5
+    env:
+      KERO_RUNNER_VARIANT: ${{ needs.prepare.outputs.variant }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 

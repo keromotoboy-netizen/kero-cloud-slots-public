@@ -51,3 +51,5 @@ jobs:
       - name: Require one claimed job
         if: steps.claim.outputs.claimed != 'true'
         run: python -c "raise SystemExit('expected canonical probe job but queue was empty')"
+
+# probe-v2: variant-routed canonical jobs

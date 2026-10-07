@@ -41,7 +41,7 @@ function dimensions(format) {
 function svgFor(b) {
   const [w,h] = dimensions(b.format === 'reel' ? 'story' : b.format);
   const pad = Math.round(w * 0.07);
-  const yellow = '#f5c400', black = '#0b0b0b', white = '#ffffff', gray = '#dedede';
+  const yellow = '#A9822A', black = '#080808', white = '#F4F1E8', gray = '#D8D2C4';
 
   if (b.kind === 'review') {
     const quote = wrapText(b.quote, b.format==='square'?24:30);
@@ -75,6 +75,28 @@ function svgFor(b) {
     </svg>`;
   }
 
+  if (b.kind === 'photo') {
+    const headline = wrapText(b.headline, b.format==='square'?22:26);
+    const subhead = wrapText(b.subhead || '', b.format==='square'?34:40);
+    const proof = wrapText(b.proof || '', 42);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+      <defs>
+        <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#080808" stop-opacity="0.18"/>
+          <stop offset="55%" stop-color="#080808" stop-opacity="0.45"/>
+          <stop offset="100%" stop-color="#080808" stop-opacity="0.94"/>
+        </linearGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#fade)"/>
+      <rect x="${pad}" y="${pad}" width="${w-pad*2}" height="5" fill="#A9822A"/>
+      <text x="${pad}" y="${pad+60}" font-family="Arial,Helvetica,sans-serif" font-size="36" font-weight="900" fill="#F4F1E8">KERO <tspan fill="#A9822A">MOTOBOY</tspan></text>
+      <text x="${pad}" y="${Math.round(h*.56)}" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="900" fill="#A9822A">${esc(b.eyebrow || '')}</text>
+      ${tspans(headline,pad,Math.round(h*.64),b.format==='square'?48:68,b.format==='square'?58:78,900,white)}
+      ${tspans(subhead,pad,Math.round(h*.79),b.format==='square'?26:32,b.format==='square'?36:42,700,white)}
+      ${tspans(proof,pad,Math.round(h*.90),24,34,800,'#C7A344')}
+    </svg>`;
+  }
+
   const headline = wrapText(b.headline, b.format==='square'?22:26);
   const subhead = wrapText(b.subhead, b.format==='square'?34:40);
   const proof = wrapText(b.proof || 'São Paulo • Grande SP • Interior • Litoral', 42);
@@ -94,25 +116,38 @@ function svgFor(b) {
 const files = fs.readdirSync(briefsDir).filter(f => f.endsWith('.json')).sort();
 const manifest = [];
 for (const file of files) {
-  const b = JSON.parse(fs.readFileSync(path.join(briefsDir,file),'utf8'));
+  const parsed = JSON.parse(fs.readFileSync(path.join(briefsDir,file),'utf8'));
+  const briefs = Array.isArray(parsed) ? parsed : [parsed];
+  for (const b of briefs) {
   if (b.privacy !== 'PUBLIC_SAFE') continue;
   if (!/^[a-zA-Z0-9._-]+$/.test(b.id || '')) throw new Error('invalid brief id: '+b.id);
-  if (!['review','faq','urgencia'].includes(b.kind)) throw new Error('invalid kind: '+b.kind);
+  if (!['review','faq','urgencia','photo'].includes(b.kind)) throw new Error('invalid kind: '+b.kind);
   if (!['story','feed45','square','reel'].includes(b.format)) throw new Error('invalid format: '+b.format);
 
   const svg = svgFor(b);
-  const pngPath = path.join(outDir, b.id + '.png');
-  await sharp(Buffer.from(svg)).png().toFile(pngPath);
+  const jpgPath = path.join(outDir, b.id + '.jpg');
+  let base;
+  if (b.kind === 'photo' && b.photo_url) {
+    const res = await fetch(b.photo_url);
+    if (!res.ok) throw new Error('photo fetch failed '+res.status+' '+b.id);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const [w,h] = dimensions(b.format === 'reel' ? 'story' : b.format);
+    base = sharp(buf).resize(w,h,{fit:'cover',position:'centre'});
+  } else {
+    const [w,h] = dimensions(b.format === 'reel' ? 'story' : b.format);
+    base = sharp({create:{width:w,height:h,channels:3,background:'#080808'}});
+  }
+  await base.composite([{input:Buffer.from(svg),top:0,left:0}]).jpeg({quality:92}).toFile(jpgPath);
 
   const item = {
     id:b.id, kind:b.kind, format:b.format,
-    png:`https://raw.githubusercontent.com/${process.env.GITHUB_REPOSITORY || 'keromotoboy-netizen/kero-cloud-slots-public'}/main/marketing/generated/${b.id}.png`
+    jpg:`https://raw.githubusercontent.com/${process.env.GITHUB_REPOSITORY || 'keromotoboy-netizen/kero-cloud-slots-public'}/main/marketing/generated/${b.id}.jpg`
   };
 
   if (b.format === 'reel') {
     const mp4Path = path.join(outDir, b.id + '.mp4');
     execFileSync('ffmpeg',[
-      '-y','-loop','1','-i',pngPath,
+      '-y','-loop','1','-i',jpgPath,
       '-t',String(b.duration_seconds || 8),
       '-vf','scale=1080:1920,format=yuv420p,fade=t=in:st=0:d=0.35,fade=t=out:st=7.2:d=0.5',
       '-r','30','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',mp4Path
@@ -120,6 +155,7 @@ for (const file of files) {
     item.mp4=`https://raw.githubusercontent.com/${process.env.GITHUB_REPOSITORY || 'keromotoboy-netizen/kero-cloud-slots-public'}/main/marketing/generated/${b.id}.mp4`;
   }
   manifest.push(item);
+  }
 }
 fs.writeFileSync(path.join(outDir,'manifest.json'), JSON.stringify({generated_at:new Date().toISOString(),items:manifest},null,2)+'\n');
 console.log(JSON.stringify(manifest,null,2));

@@ -146,13 +146,21 @@ for (const file of files) {
 
   if (b.format === 'reel') {
     const mp4Path = path.join(outDir, b.id + '.mp4');
-    execFileSync('ffmpeg',[
-      '-y','-loop','1','-i',jpgPath,
-      '-t',String(b.duration_seconds || 8),
-      '-vf','scale=1080:1920,format=yuv420p,fade=t=in:st=0:d=0.35,fade=t=out:st=7.2:d=0.5',
-      '-r','30','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',mp4Path
-    ],{stdio:'inherit'});
-    item.mp4=`https://raw.githubusercontent.com/${process.env.GITHUB_REPOSITORY || 'keromotoboy-netizen/kero-cloud-slots-public'}/main/marketing/generated/${b.id}.mp4`;
+    if (!fs.existsSync(mp4Path)) {
+      try {
+        execFileSync('ffmpeg',[
+          '-y','-loop','1','-i',jpgPath,
+          '-t',String(b.duration_seconds || 8),
+          '-vf','scale=1080:1920,format=yuv420p,fade=t=in:st=0:d=0.35,fade=t=out:st=7.2:d=0.5',
+          '-r','30','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',mp4Path
+        ],{stdio:'inherit'});
+      } catch (e) {
+        console.warn('ffmpeg unavailable; preserving existing reel asset only:', b.id);
+      }
+    }
+    if (fs.existsSync(mp4Path)) {
+      item.mp4=`https://raw.githubusercontent.com/${process.env.GITHUB_REPOSITORY || 'keromotoboy-netizen/kero-cloud-slots-public'}/main/marketing/generated/${b.id}.mp4`;
+    }
   }
   manifest.push(item);
   }

@@ -4,6 +4,7 @@ from collections import Counter
 MAX_TEXT = 200_000
 MAX_JSON = 1_000_000
 MAX_RESULT = 64_000
+WORKER_VERSION = "2.1.0"
 
 def clamp_text(value):
     s = "" if value is None else str(value)
@@ -12,7 +13,7 @@ def clamp_text(value):
     return s
 
 def task_health(payload):
-    return {"ok": True, "worker": "github-public", "python": sys.version.split()[0]}
+    return {"ok": True, "worker": "github-public", "worker_version": WORKER_VERSION, "python": sys.version.split()[0], "tasks": sorted(TASKS) if "TASKS" in globals() else []}
 
 def task_sha256(payload):
     text = clamp_text(payload.get("text", ""))

@@ -4,7 +4,7 @@ from collections import Counter
 MAX_TEXT = 200_000
 MAX_JSON = 1_000_000
 MAX_RESULT = 64_000
-WORKER_VERSION = "2.1.0"
+WORKER_VERSION = "2.1.1"
 MAX_BUILD_FILES = 100
 MAX_BUILD_BYTES = 500_000
 
@@ -15,7 +15,7 @@ def clamp_text(value):
     return s
 
 def task_health(payload):
-    return {"ok": True, "worker": "github-public", "worker_version": WORKER_VERSION, "python": sys.version.split()[0], "tasks": sorted(TASKS) if "TASKS" in globals() else []}
+    return {"ok": True, "worker": "public-safe", "worker_version": WORKER_VERSION, "python": sys.version.split()[0], "tasks": sorted(TASKS) if "TASKS" in globals() else [], "limits": {"max_text": MAX_TEXT, "max_json": MAX_JSON, "max_result": MAX_RESULT, "max_build_files": MAX_BUILD_FILES, "max_build_bytes": MAX_BUILD_BYTES}}
 
 def task_sha256(payload):
     text = clamp_text(payload.get("text", ""))

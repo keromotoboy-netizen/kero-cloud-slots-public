@@ -25,14 +25,6 @@ jobs:
       - name: Install renderer dependency
         run: npm install --no-save sharp@0.33.5
 
-      - name: Verify ffmpeg
-        run: |
-          if ! command -v ffmpeg >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y ffmpeg
-          fi
-          ffmpeg -version | head -n 1
-
       - name: Render PUBLIC_SAFE marketing assets
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}

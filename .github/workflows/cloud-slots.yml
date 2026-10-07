@@ -91,7 +91,7 @@ jobs:
           set -euo pipefail
           OIDC_JSON=$(curl -fsS             -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=kero-brain-worker")
           OIDC=$(printf '%s' "$OIDC_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);if(!j.value)process.exit(2);process.stdout.write(j.value)})')
-          curl -fsS             -H "Authorization: Bearer $OIDC"             -H "Content-Type: application/json"             -d '{"action":"claim","capabilities":["health","sha256","text-stats","json-summary","json-normalize","manifest"]}'             "$BRAIN_WORKER_URL" > claim.json
+          curl -fsS             -H "Authorization: Bearer $OIDC"             -H "Content-Type: application/json"             -d '{"action":"claim","capabilities":["health","sha256","text-stats","json-summary","json-normalize","manifest","lint","unit-test","build-safe"]}'             "$BRAIN_WORKER_URL" > claim.json
           node <<'NODE'
           const fs=require('fs');
           const r=JSON.parse(fs.readFileSync('claim.json','utf8'));

@@ -55,7 +55,7 @@ def complete():
     if not jid: raise RuntimeError("claim_job_id_missing")
     payload={"action":"complete","id":jid}
     if result.get("ok"):
-        payload["result"]={"task":result.get("task"),"result":result.get("result")}
+        payload["result"]={"task":result.get("task"),"result":result.get("result"),"_execution":{"runner_variant":os.environ.get("KERO_RUNNER_VARIANT"),"runner_os":os.environ.get("RUNNER_OS"),"runner_arch":os.environ.get("RUNNER_ARCH")}}
     else:
         payload["error"]=str(result.get("error") or "worker_failed")[:500]
     r=post_brain(payload)

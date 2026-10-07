@@ -26,7 +26,7 @@ jobs:
             curl -fsS \
               -H "Authorization: Bearer ${CIRCLE_OIDC_TOKEN_V2}" \
               -H "Content-Type: application/json" \
-              -d '{"action":"claim","capabilities":["health","sha256","text-stats","json-summary","json-normalize","manifest"]}' \
+              -d '{"action":"claim","capabilities":["health","sha256","text-stats","json-summary","json-normalize","manifest","lint","unit-test","build-safe"]}' \
               "https://noqdjfuqaqlicugbqihv.supabase.co/functions/v1/kero-brain-github-worker" \
               > claim.json
 

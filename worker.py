@@ -140,6 +140,7 @@ def task_build_safe(payload):
 
 TASKS = {
     "health": task_health,
+    "runner-probe": task_health,
     "sha256": task_sha256,
     "text-stats": task_text_stats,
     "json-summary": task_json_summary,

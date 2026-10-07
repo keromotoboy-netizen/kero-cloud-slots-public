@@ -5,6 +5,8 @@ MAX_TEXT = 200_000
 MAX_JSON = 1_000_000
 MAX_RESULT = 64_000
 WORKER_VERSION = "2.1.0"
+MAX_BUILD_FILES = 100
+MAX_BUILD_BYTES = 500_000
 
 def clamp_text(value):
     s = "" if value is None else str(value)
@@ -98,7 +100,7 @@ def task_unit_test(payload):
 
 def task_build_safe(payload):
     items = payload.get("files")
-    if not isinstance(items, list) or not items or len(items) > 100:
+    if not isinstance(items, list) or not items or len(items) > MAX_BUILD_FILES:
         raise ValueError("invalid_files")
     total = 0
     manifest = []
@@ -116,7 +118,7 @@ def task_build_safe(payload):
             raise ValueError(f"unsupported_extension_{i}")
         b = content.encode("utf-8")
         total += len(b)
-        if total > 500_000:
+        if total > MAX_BUILD_BYTES:
             raise ValueError("build_input_too_large")
         if ext == ".json":
             json.loads(content)

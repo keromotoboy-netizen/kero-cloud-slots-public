@@ -1,0 +1,40 @@
+name: One-time Public Runner Probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/runner-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-slim
+            os: ubuntu-slim
+          - name: linux-x64
+            os: ubuntu-latest
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+          - name: windows-x64
+            os: windows-latest
+          - name: windows-arm64
+            os: windows-11-arm
+          - name: macos-arm64
+            os: macos-latest
+          - name: macos-intel
+            os: macos-15-intel
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - name: Portable Python probe
+        env:
+          KERO_VARIANT: ${{ matrix.name }}
+        run: python -c "import json,os,platform,shutil; d=shutil.disk_usage('.'); print(json.dumps({'variant':os.environ.get('KERO_VARIANT'),'platform':platform.platform(),'machine':platform.machine(),'python':platform.python_version(),'cpu_count':os.cpu_count(),'disk_free_gb':round(d.free/1073741824,2)}))"

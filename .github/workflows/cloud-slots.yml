@@ -24,7 +24,7 @@ on:
         required: true
         default: linux
         type: choice
-        options: [linux, windows, arm]
+        options: [linux, windows, arm, macos, slim]
   repository_dispatch:
     types: [kero-cloud-task]
 
@@ -61,6 +61,8 @@ jobs:
           case "$RUNNER" in
             windows) LABEL=windows-latest ;;
             arm) LABEL=ubuntu-24.04-arm ;;
+            macos) LABEL=macos-latest ;;
+            slim) LABEL=ubuntu-slim ;;
             *) LABEL=ubuntu-latest ;;
           esac
           MATRIX=$(seq 1 "$SLOTS" | jq -Rsc 'split("\n")[:-1] | map(tonumber)')

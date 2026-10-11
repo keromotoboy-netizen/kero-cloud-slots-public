@@ -1,24 +1,108 @@
 {
-  "generated_at": "2026-10-07T00:55:49.512Z",
+  "generated_at": "2026-10-11T12:18:30.854Z",
   "items": [
     {
       "id": "2026-10-07-faq-coleta-urgente",
       "kind": "faq",
       "format": "story",
-      "png": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-faq-coleta-urgente.png"
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-faq-coleta-urgente.jpg"
     },
     {
       "id": "2026-10-07-gbp-acompanhamento-humano",
       "kind": "faq",
       "format": "square",
-      "png": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-gbp-acompanhamento-humano.png"
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-gbp-acompanhamento-humano.jpg"
     },
     {
       "id": "2026-10-07-reel-entrega-sem-atraso",
       "kind": "urgencia",
       "format": "reel",
-      "png": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-reel-entrega-sem-atraso.png",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-reel-entrega-sem-atraso.jpg",
       "mp4": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-reel-entrega-sem-atraso.mp4"
+    },
+    {
+      "id": "2026-10-11-story-atendimento-humano-pj",
+      "kind": "faq",
+      "format": "story",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-11-story-atendimento-humano-pj.jpg"
+    },
+    {
+      "id": "2026-10-07-feed-urgencia",
+      "kind": "photo",
+      "format": "feed45",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-feed-urgencia.jpg"
+    },
+    {
+      "id": "2026-10-07-feed-carousel-1",
+      "kind": "photo",
+      "format": "feed45",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-feed-carousel-1.jpg"
+    },
+    {
+      "id": "2026-10-07-feed-carousel-2",
+      "kind": "photo",
+      "format": "feed45",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-feed-carousel-2.jpg"
+    },
+    {
+      "id": "2026-10-07-feed-carousel-3",
+      "kind": "photo",
+      "format": "feed45",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-feed-carousel-3.jpg"
+    },
+    {
+      "id": "2026-10-07-feed-cobertura",
+      "kind": "photo",
+      "format": "feed45",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-feed-cobertura.jpg"
+    },
+    {
+      "id": "2026-10-07-story-02",
+      "kind": "photo",
+      "format": "story",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-story-02.jpg"
+    },
+    {
+      "id": "2026-10-07-story-03",
+      "kind": "photo",
+      "format": "story",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-story-03.jpg"
+    },
+    {
+      "id": "2026-10-07-story-04",
+      "kind": "photo",
+      "format": "story",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-story-04.jpg"
+    },
+    {
+      "id": "2026-10-07-story-05",
+      "kind": "photo",
+      "format": "story",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-story-05.jpg"
+    },
+    {
+      "id": "2026-10-07-story-06",
+      "kind": "photo",
+      "format": "story",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-story-06.jpg"
+    },
+    {
+      "id": "2026-10-07-story-07",
+      "kind": "photo",
+      "format": "story",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-story-07.jpg"
+    },
+    {
+      "id": "2026-10-07-story-08",
+      "kind": "photo",
+      "format": "story",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-story-08.jpg"
+    },
+    {
+      "id": "2026-10-07-story-09",
+      "kind": "photo",
+      "format": "story",
+      "jpg": "https://raw.githubusercontent.com/keromotoboy-netizen/kero-cloud-slots-public/main/marketing/generated/2026-10-07-story-09.jpg"
     }
   ]
 }

@@ -119,6 +119,7 @@ for (const file of files) {
   const parsed = JSON.parse(fs.readFileSync(path.join(briefsDir,file),'utf8'));
   const briefs = Array.isArray(parsed) ? parsed : [parsed];
   for (const b of briefs) {
+  try {
   if (b.privacy !== 'PUBLIC_SAFE') continue;
   if (!/^[a-zA-Z0-9._-]+$/.test(b.id || '')) throw new Error('invalid brief id: '+b.id);
   if (!['review','faq','urgencia','photo'].includes(b.kind)) throw new Error('invalid kind: '+b.kind);
@@ -163,6 +164,10 @@ for (const file of files) {
     }
   }
   manifest.push(item);
+  } catch (err) {
+    console.error('SKIPPED_BRIEF '+String(b.id || file)+': '+String(err.message || err));
+    continue;
+  }
   }
 }
 fs.writeFileSync(path.join(outDir,'manifest.json'), JSON.stringify({generated_at:new Date().toISOString(),items:manifest},null,2)+'\n');

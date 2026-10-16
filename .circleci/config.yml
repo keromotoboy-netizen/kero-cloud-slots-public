@@ -21,6 +21,15 @@ jobs:
           command: |
             set -euo pipefail
 
+            # Supabase OIDC trust permits CircleCI only on refs/heads/main.
+            # On PR/feature branches validate code, but NEVER claim the central queue.
+            if [ "${CIRCLE_BRANCH:-}" != "main" ]; then
+              python -m py_compile runner_bridge.py worker.py test_site_smoke_contract.py
+              python -m unittest -q test_site_smoke_contract
+              echo "Non-main branch: static tests passed; OIDC queue claim skipped"
+              exit 0
+            fi
+
             test -n "${CIRCLE_OIDC_TOKEN_V2:-}"
 
             curl -fsS \

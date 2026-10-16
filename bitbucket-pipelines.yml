@@ -1,0 +1,14 @@
+# KERO FREE-MAX: ONLY manual custom pipelines; no branch/pr auto-trigger.
+# DO NOT RUN without verified zero-overspend billing and available free minutes.
+image: python:3.12-alpine
+
+pipelines:
+  custom:
+    kero-public-safe-static:
+      - step:
+          name: Kero public-safe static checks
+          max-time: 5
+          script:
+            - python -m py_compile worker.py runner_bridge.py
+            - python -m py_compile control/kids-poller.py control/kids-poller-stable.py
+            - python -c "from pathlib import Path; assert Path('worker.py').is_file()"

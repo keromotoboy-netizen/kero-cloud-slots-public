@@ -68,22 +68,46 @@ def complete():
     print(json.dumps({"completed":True,"id":jid,"status":r.get("job",{}).get("status")}))
 
 def site_smoke():
-    urls=["https://keromotoboy.com.br","https://keromotoboy.com.br/rotas/","https://keromotoboy.com.br/calculadora/"]
+    """Check public availability and protected-route AUTH GATES only.
+
+    A 401 on an internal route is expected and MUST NOT be reported as an
+    application failure. This does not test authenticated functionality.
+    """
+    endpoints=[
+        ("https://keromotoboy.com.br", 200, "PUBLIC_SITE", False),
+        ("https://keromotoboy.com.br/rotas/", 401, "ROTAS_AUTH_GATE", True),
+        ("https://keromotoboy.com.br/calculadora/", 401, "CALCULADORA_AUTH_GATE", True),
+    ]
     bad=0
-    for u in urls:
+    for url,expected,label,auth_gate in endpoints:
         ok=False
-        for a in range(1,4):
+        for attempt in range(1,4):
+            status=0
+            error=None
             try:
-                rq=urllib.request.Request(u,headers={"User-Agent":"kero-public-smoke/1.0"})
-                with urllib.request.urlopen(rq,timeout=20) as r:
-                    status=r.status
-                print(json.dumps({"url":u,"status":status,"attempt":a}))
-                ok=200 <= status < 400
-            except Exception as e:
-                print(json.dumps({"url":u,"status":0,"attempt":a,"error":type(e).__name__}))
-            if ok: break
-            time.sleep(1)
-        if not ok: bad+=1
+                request=urllib.request.Request(url,headers={"User-Agent":"kero-public-smoke/1.1"})
+                with urllib.request.urlopen(request,timeout=20) as response:
+                    status=int(response.status)
+            except urllib.error.HTTPError as exc:
+                status=int(exc.code)
+                error="HTTPError"
+            except Exception as exc:
+                error=type(exc).__name__
+
+            ok=(status==expected)
+            print(json.dumps({
+                "check":label,"url":url,"status":status,"expected_status":expected,
+                "attempt":attempt,"ok":ok,"auth_guard":auth_gate,
+                "authenticated_functionality_tested":False,"error":error
+            },separators=(",",":")))
+
+            # A definitive 4xx (except timeout/throttle) is not transient.
+            if ok or (400<=status<500 and status not in (408,429)):
+                break
+            if attempt<3:
+                time.sleep(1)
+        if not ok:
+            bad+=1
     raise SystemExit(2 if bad else 0)
 
 def benchmark():

@@ -1,0 +1,26 @@
+# KERO FREE-MAX: no automatic trigger. No Azure subscription should be created.
+# This file does not establish free usage, billing cap or deployment permission.
+trigger: none
+pr: none
+
+parameters:
+  - name: freeMaxVerified
+    displayName: FREE-MAX and Azure hosted capacity verified externally
+    type: boolean
+    default: false
+
+pool:
+  vmImage: ubuntu-latest
+
+jobs:
+  - job: public_safe_static
+    displayName: Kero public-safe static checks
+    timeoutInMinutes: 5
+    condition: and(succeeded(), eq('${{ parameters.freeMaxVerified }}', 'true'))
+    steps:
+      - checkout: self
+        persistCredentials: false
+      - script: |
+          python3 -m py_compile worker.py runner_bridge.py
+          python3 -m py_compile control/kids-poller.py control/kids-poller-stable.py
+        displayName: Static allowlisted validation

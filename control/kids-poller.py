@@ -98,7 +98,7 @@ def fetch_jobs(meta, seen):
           "&order=created_at.asc"
           "&limit=100"
         )
-        url=SUPABASE_URL+"/rest/v1/kero_control_jobs_public?"+qs
+        url="https://kero-nervoso-api.keromotoboy.workers.dev/control/jobs?"+qs
         req=urllib.request.Request(url,headers={
           "apikey":SUPABASE_KEY,
           "Accept":"application/json",

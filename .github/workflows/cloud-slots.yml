@@ -13,7 +13,7 @@ on:
         description: Tarefa pública permitida
         required: true
         type: choice
-        options: [queue-worker, site-smoke, runtime-benchmark]
+        options: [site-smoke, runtime-benchmark]
       slots:
         description: Quantidade de slots paralelos
         required: true
@@ -31,7 +31,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   prepare:
@@ -47,7 +46,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             SLOTS="1"
-            TASK="queue-worker"
+            TASK="site-smoke"
             RUNNER="linux"
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             SLOTS="${{ inputs.slots }}"
@@ -58,8 +57,16 @@ jobs:
             TASK="${{ github.event.client_payload.task }}"
             RUNNER="${{ github.event.client_payload.runner }}"
           fi
+
           case "$SLOTS" in 1|2|4|8|12|16) ;; *) SLOTS=1 ;; esac
-          case "$TASK" in queue-worker|site-smoke|runtime-benchmark) ;; *) TASK=queue-worker ;; esac
+          case "$TASK" in
+            site-smoke|runtime-benchmark) ;;
+            queue-worker)
+              echo "::error::queue-worker is fail-closed after Cloudflare became canonical. Port GitHub OIDC to the Cloudflare control plane before re-enabling."
+              exit 1
+              ;;
+            *) TASK=site-smoke ;;
+          esac
           case "$RUNNER" in
             windows) LABEL=windows-latest; VARIANT=windows-x64 ;;
             arm) LABEL=ubuntu-24.04-arm; VARIANT=linux-arm64 ;;
@@ -69,6 +76,7 @@ jobs:
             slim) LABEL=ubuntu-slim; VARIANT=linux-slim ;;
             *) LABEL=ubuntu-latest; VARIANT=linux-x64 ;;
           esac
+
           MATRIX=$(seq 1 "$SLOTS" | jq -Rsc 'split("\n")[:-1] | map(tonumber)')
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
           echo "task=$TASK" >> "$GITHUB_OUTPUT"
@@ -87,26 +95,9 @@ jobs:
     env:
       KERO_RUNNER_VARIANT: ${{ needs.prepare.outputs.variant }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Claim PUBLIC_SAFE job
-        id: claim
-        if: needs.prepare.outputs.task == 'queue-worker'
-        env:
-          BRAIN_WORKER_URL: https://noqdjfuqaqlicugbqihv.supabase.co/functions/v1/kero-brain-github-worker
-        run: python runner_bridge.py claim
-
-      - name: Execute allowlisted worker
-        id: work
-        if: needs.prepare.outputs.task == 'queue-worker' && steps.claim.outputs.claimed == 'true'
-        continue-on-error: true
-        run: python worker.py
-
-      - name: Complete PUBLIC_SAFE job
-        if: always() && needs.prepare.outputs.task == 'queue-worker' && steps.claim.outputs.claimed == 'true'
-        env:
-          BRAIN_WORKER_URL: https://noqdjfuqaqlicugbqihv.supabase.co/functions/v1/kero-brain-github-worker
-        run: python runner_bridge.py complete
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Site smoke
         if: needs.prepare.outputs.task == 'site-smoke'

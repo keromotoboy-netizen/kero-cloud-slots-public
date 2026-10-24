@@ -1,0 +1,85 @@
+name: Reusable PUBLIC_SAFE Baseline
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Validate repository safety invariants
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          import subprocess
+          import sys
+
+          errors = []
+
+          tracked = subprocess.check_output(
+              ["git", "ls-files"], text=True, encoding="utf-8"
+          ).splitlines()
+
+          forbidden_names = {
+              ".env", "id_rsa", "id_ed25519",
+              "credentials.json", "service-account.json"
+          }
+          forbidden_binary_suffixes = {".p12", ".pfx"}
+
+          for name in tracked:
+              p = Path(name)
+              lower_name = p.name.lower()
+
+              if lower_name in forbidden_names:
+                  errors.append(f"forbidden tracked filename: {name}")
+
+              if p.suffix.lower() in forbidden_binary_suffixes:
+                  errors.append(f"forbidden tracked credential suffix: {name}")
+
+              if p.suffix.lower() == ".pem":
+                  pem = p.read_text(encoding="utf-8", errors="replace")
+                  is_public_material = (
+                      "-----BEGIN PUBLIC KEY-----" in pem
+                      or "-----BEGIN CERTIFICATE-----" in pem
+                  )
+                  contains_private = "PRIVATE KEY-----" in pem
+                  if not is_public_material or contains_private:
+                      errors.append(f"PEM is not demonstrably public material: {name}")
+
+          for wf in Path(".github/workflows").glob("*.y*ml"):
+              text = wf.read_text(encoding="utf-8")
+              if not re.search(r"(?m)^permissions(?:\s*:|\s*$)", text):
+                  errors.append(f"workflow missing explicit permissions: {wf}")
+
+              for n, line in enumerate(text.splitlines(), 1):
+                  m = re.search(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", line)
+                  if not m:
+                      continue
+                  ref = m.group(1).strip("'\"")
+                  if ref.startswith("./"):
+                      continue
+                  if ref.startswith("docker://"):
+                      if "@sha256:" not in ref:
+                          errors.append(f"{wf}:{n}: docker ref is not digest-pinned")
+                      continue
+                  if "@" not in ref or not re.fullmatch(
+                      r"[0-9a-fA-F]{40}", ref.rsplit("@", 1)[1]
+                  ):
+                      errors.append(f"{wf}:{n}: action is not pinned to full SHA")
+
+          if errors:
+              for err in errors:
+                  print(f"::error::{err}")
+              sys.exit(1)
+
+          print("PUBLIC_SAFE baseline passed.")

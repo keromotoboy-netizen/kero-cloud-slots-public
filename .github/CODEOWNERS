@@ -1,0 +1,9 @@
+# Kero Cloud Slots Public — ownership de caminhos sensíveis.
+# Mantém revisão concentrada no owner do repositório sem criar nova autoridade.
+* @keromotoboy-netizen
+
+/.github/ @keromotoboy-netizen
+/cloud-slot/ @keromotoboy-netizen
+/control/ @keromotoboy-netizen
+/runner_bridge.py @keromotoboy-netizen
+/worker.py @keromotoboy-netizen

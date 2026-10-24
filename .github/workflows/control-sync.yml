@@ -1,59 +1,85 @@
-name: Kero Control Sync
+name: Kero Control Jobs Validation
 
 on:
   push:
     branches: [main]
     paths:
       - "control/jobs/*.json"
+      - ".github/workflows/control-sync.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "control/jobs/*.json"
+      - ".github/workflows/control-sync.yml"
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
-  group: kero-control-sync-main
-  cancel-in-progress: false
+  group: kero-control-validate-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  sync:
+  validate:
     runs-on: ubuntu-slim
     timeout-minutes: 3
     steps:
-      - name: Sync changed control jobs
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.sha }}
-          BRAIN_WORKER_URL: https://noqdjfuqaqlicugbqihv.supabase.co/functions/v1/kero-brain-github-worker
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Validate public control job files only
+        shell: python
         run: |
-          set -euo pipefail
+          from pathlib import Path
+          from datetime import datetime, timezone, timedelta
+          import json
+          import re
+          import sys
 
-          OIDC_JSON=$(curl -fsS             -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=kero-brain-worker")
-          OIDC=$(printf '%s' "$OIDC_JSON" | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("value"); print(x["value"],end="")')
+          errors = []
+          id_re = re.compile(r"^kero-[A-Za-z0-9._:-]{4,120}$")
+          action_re = re.compile(r"^[A-Za-z0-9._:-]{2,100}$")
+          allowed_targets = {"kids", "cinza", "any"}
 
-          if [[ "$BEFORE" =~ ^0+$ ]]; then
-            API="https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$AFTER"
-          else
-            API="https://api.github.com/repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER"
-          fi
+          for path in sorted(Path("control/jobs").glob("kero-*.json")):
+              try:
+                  raw = path.read_text(encoding="utf-8")
+                  if len(raw.encode("utf-8")) > 32768:
+                      raise ValueError("arquivo maior que 32 KiB")
+                  job = json.loads(raw)
 
-          curl -fsS             -H "Authorization: Bearer $GH_TOKEN"             -H "Accept: application/vnd.github+json"             "$API" > changed.json
+                  file_id = path.stem
+                  job_id = str(job.get("id", ""))
+                  target = str(job.get("target", ""))
+                  action = str(job.get("action", ""))
+                  risk = job.get("risk")
+                  params = job.get("params", {})
+                  expires_raw = str(job.get("expires_at", ""))
 
-          mapfile -t PATHS < <(
-            jq -r '.files[]?.filename // empty' changed.json |
-            grep -E '^control/jobs/kero-[A-Za-z0-9._:-]{4,120}\.json$' |
-            sort -u
-          )
+                  if job_id != file_id or not id_re.fullmatch(job_id):
+                      raise ValueError("id inválido ou diferente do nome do arquivo")
+                  if target not in allowed_targets:
+                      raise ValueError("target fora da allowlist")
+                  if not action_re.fullmatch(action):
+                      raise ValueError("action inválida")
+                  if risk not in (1, 2):
+                      raise ValueError("risk deve ser 1 ou 2")
+                  if not isinstance(params, dict) or len(json.dumps(params)) > 16384:
+                      raise ValueError("params inválido ou grande demais")
 
-          if [ "${#PATHS[@]}" -eq 0 ]; then
-            echo "No control jobs to sync."
-            exit 0
-          fi
+                  expires = datetime.fromisoformat(expires_raw.replace("Z", "+00:00"))
+                  if expires.tzinfo is None:
+                      raise ValueError("expires_at precisa de timezone")
 
-          for path in "${PATHS[@]}"; do
-            BODY=$(jq -nc --arg path "$path" '{action:"control_sync",path:$path}')
-            RESPONSE=$(curl -fsS               -H "Authorization: Bearer $OIDC"               -H "Content-Type: application/json"               --data "$BODY"               "$BRAIN_WORKER_URL")
-            echo "$RESPONSE" | jq -c '{ok,id,inserted,error}'
-            echo "$RESPONSE" | jq -e '.ok == true' >/dev/null
-          done
+              except Exception as exc:
+                  errors.append(f"{path}: {exc}")
+
+          if errors:
+              for err in errors:
+                  print(f"::error::{err}")
+              sys.exit(1)
+
+          print("Control job files are structurally valid.")
+          print("No write is performed: Cloudflare/D1 is the canonical control plane.")

@@ -1,0 +1,20 @@
+name: Repository Security Baseline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    paths:
+      - ".github/**"
+      - "cloud-slot/**"
+      - "control/**"
+      - "runner_bridge.py"
+      - "worker.py"
+
+permissions:
+  contents: read
+
+jobs:
+  public-safe-baseline:
+    uses: ./.github/workflows/reusable-public-safe-baseline.yml

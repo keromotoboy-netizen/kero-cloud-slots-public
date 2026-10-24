@@ -34,14 +34,27 @@ jobs:
               ".env", "id_rsa", "id_ed25519",
               "credentials.json", "service-account.json"
           }
-          forbidden_suffixes = {".pem", ".p12", ".pfx"}
+          forbidden_binary_suffixes = {".p12", ".pfx"}
 
           for name in tracked:
               p = Path(name)
-              if p.name.lower() in forbidden_names:
+              lower_name = p.name.lower()
+
+              if lower_name in forbidden_names:
                   errors.append(f"forbidden tracked filename: {name}")
-              if p.suffix.lower() in forbidden_suffixes:
+
+              if p.suffix.lower() in forbidden_binary_suffixes:
                   errors.append(f"forbidden tracked credential suffix: {name}")
+
+              if p.suffix.lower() == ".pem":
+                  pem = p.read_text(encoding="utf-8", errors="replace")
+                  is_public_material = (
+                      "-----BEGIN PUBLIC KEY-----" in pem
+                      or "-----BEGIN CERTIFICATE-----" in pem
+                  )
+                  contains_private = "PRIVATE KEY-----" in pem
+                  if not is_public_material or contains_private:
+                      errors.append(f"PEM is not demonstrably public material: {name}")
 
           for wf in Path(".github/workflows").glob("*.y*ml"):
               text = wf.read_text(encoding="utf-8")
